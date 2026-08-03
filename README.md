@@ -16,7 +16,7 @@ NOT FOUND — HALLUCINATION CAUGHT
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/vfault.git
+git clone https://github.com/Digitalcdj/vfault.git
 cd vfault
 pip install -r requirements.txt
 
