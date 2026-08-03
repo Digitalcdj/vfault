@@ -188,7 +188,7 @@ VFault uses a three-agent streaming pipeline. For the full specification includi
 
 ## Author
 
-Ian Fraser — [Exceed Web Services](https://exceedwebservices.co.uk)
+Ian Fraser — [Exceed Web Services](https://exceedwebservices.com)
 Ceredigion, Wales
 
 *VFault: verification at the fault lines.*
