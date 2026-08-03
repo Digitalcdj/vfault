@@ -1,0 +1,25 @@
+{
+  "store": {
+    "database": "wordpress.db",
+    "total_triples": 25398,
+    "domain": "wordpress",
+    "format": "structured_triples"
+  },
+  "functions": {
+    "total": 4591,
+    "active": 4192,
+    "deprecated": 402
+  },
+  "hooks": {
+    "unique_total": 2346,
+    "actions": 610,
+    "filters": 1736
+  },
+  "class_methods": 27,
+  "coverage": {
+    "has_since_version": 3985,
+    "has_return_type": 3040,
+    "has_description": 4194,
+    "has_parameters": 3236
+  }
+}
