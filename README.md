@@ -166,7 +166,7 @@ The CLI is free forever. The hosted service saves you from running infrastructur
 - [x] API with 6 endpoints — working
 - [x] Production guardrails — rate limiting, input validation
 - [x] Benchmarks across 3 frontier models — measured
-- [ ] GitHub release
+- [x] GitHub release
 - [ ] VS Code extension
 - [ ] Python stdlib shard
 - [ ] JavaScript/Node shard
