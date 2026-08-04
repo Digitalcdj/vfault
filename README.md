@@ -306,9 +306,9 @@ Visit [vfault.com](https://vfault.com) for details.
 - [x] Benchmarks across 3 frontier models — measured
 - [x] GitHub release — v0.1.0
 - [x] Website — [vfault.com](https://vfault.com)
-- [ ] Python stdlib shard
+- [x] Python stdlib shard
 - [ ] VS Code extension
-- [ ] JavaScript/Node shard
+- [x] JavaScript/Node shard
 - [ ] CI/CD GitHub Action
 - [ ] Hosted API service
 
