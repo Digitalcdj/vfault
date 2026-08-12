@@ -56,7 +56,7 @@ LOADED_SHARDS = []
 
 # Shard access control
 FREE_SHARDS = {'wordpress'}
-PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel'}
+PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react'}
 ALL_SHARDS = FREE_SHARDS | PAID_SHARDS
 
 def get_allowed_shards(plan):
