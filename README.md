@@ -1,6 +1,6 @@
 # VFault — Verification at the Fault Lines
 
-**Catches AI hallucinations in code. Deterministic. Under 1ms. Zero false positives.**
+**Catches AI hallucinations in code. Deterministic. Zero false positives.**
 
 AI coding tools hallucinate function names, deprecated APIs, and wrong parameters across every language. VFault checks against parsed source code. No AI in the verification layer.
 
@@ -82,7 +82,7 @@ Verified:       json.dumps — Python
 |                           | VFault                           | Every competitor    |
 | ------------------------- | -------------------------------- | ------------------- |
 | Method                    | Deterministic source code lookup | AI judges AI        |
-| Speed                     | <1ms                             | 152ms+              |
+| Server-side lookup        | <1ms                             | 152ms+              |
 | False positives           | 0%                               | 5–10%               |
 | Corrections               | Yes + closest match + source     | No — score only     |
 | Can verifier hallucinate? | Impossible                       | Yes                 |
