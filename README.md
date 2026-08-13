@@ -127,26 +127,26 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 
 ## Roadmap
 
-- [x] Three-agent pipeline architecture
-- [x] WordPress shard — 25,398 triples
-- [x] WooCommerce shard — 32,451 triples
-- [x] Python shard — 36,558 triples
-- [x] JavaScript shard — 31,605 triples (ES2024 + Web APIs + Node.js)
-- [x] Laravel shard — 41,570 triples
-- [x] React + Next.js shard — 335 triples
-- [x] CLI tool
-- [x] Live API on PythonAnywhere
-- [x] VS Code extension on Marketplace
-- [x] API key auth + tiered rate limiting
-- [x] Shard gating (free vs paid)
-- [x] Website — 5 pages, PageSpeed 100
-- [x] Benchmarks across 3 frontier models
-- [ ] Lemon Squeezy payments live
-- [ ] Django shard
-- [ ] FastAPI shard
-- [ ] Tailwind CSS shard
-- [ ] WordPress 7.1 shard rebuild
-- [ ] CI/CD GitHub Action
+- ✅ Three-agent pipeline architecture
+- ✅ WordPress shard — 25,398 triples
+- ✅ WooCommerce shard — 32,451 triples
+- ✅ Python shard — 36,558 triples
+- ✅ JavaScript shard — 31,605 triples (ES2024 + Web APIs + Node.js)
+- ✅ Laravel shard — 41,570 triples
+- ✅ React + Next.js shard — 335 triples
+- ✅ CLI tool
+- ✅ Live API on PythonAnywhere
+- ✅ VS Code extension on Marketplace
+- ✅ API key auth + tiered rate limiting
+- ✅ Shard gating (free vs paid)
+- ✅ Website — 5 pages, PageSpeed 100
+- ✅ Benchmarks across 3 frontier models
+- ⬜ Lemon Squeezy payments live
+- ⬜ Django shard
+- ⬜ FastAPI shard
+- ⬜ Tailwind CSS shard
+- ⬜ WordPress 7.1 shard rebuild
+- ⬜ CI/CD GitHub Action
 
 ## Author
 
