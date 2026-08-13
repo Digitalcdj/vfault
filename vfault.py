@@ -289,13 +289,35 @@ def verify_lemonsqueezy_signature(payload_bytes, signature):
 
 # WordPress function name pattern
 WP_FUNC_PATTERN = re.compile(
-    r'\b((?:wp_|WP_|get_|set_|is_|has_|add_|remove_|do_|apply_|register_|'
+    r'\b((?:wp_|WP_|wc_|get_|set_|is_|has_|add_|remove_|do_|apply_|register_|'
     r'unregister_|delete_|update_|check_|create_|edit_|the_|have_|'
     r'sanitize_|esc_|wp_kses|absint|zeroise|human_|size_|number_|'
     r'__return_|current_user_|get_user_|wp_ajax_|admin_|comment_|'
     r'post_|term_|taxonomy_|nav_menu_|sidebar_|widget_|'
-    r'shortcode_|media_|plugin_|theme_|block_|rest_)'
+    r'shortcode_|media_|plugin_|theme_|block_|rest_|woocommerce_)'
     r'[a-z_]{2,80})\b'
+)
+
+# React hooks and core functions
+REACT_PATTERN = re.compile(
+    r'\b(use[A-Z][a-zA-Z]{1,50}|'
+    r'createElement|cloneElement|createContext|createRef|forwardRef|'
+    r'isValidElement|startTransition|lazy|memo|act|cache|'
+    r'Component|PureComponent|Fragment|Suspense|StrictMode|Profiler|'
+    r'ReactDOM\.createRoot|ReactDOM\.hydrateRoot|ReactDOM\.createPortal|'
+    r'ReactDOM\.flushSync|ReactDOM\.render|ReactDOM\.hydrate|'
+    r'ReactDOMServer\.renderToString|ReactDOMServer\.renderToPipeableStream|'
+    r'componentDidMount|componentDidUpdate|componentWillUnmount|'
+    r'componentWillMount|componentWillReceiveProps|componentWillUpdate|'
+    r'shouldComponentUpdate|getDerivedStateFromProps|getSnapshotBeforeUpdate|'
+    r'UNSAFE_componentWillMount|UNSAFE_componentWillReceiveProps|'
+    r'getServerSideProps|getStaticProps|getStaticPaths|getInitialProps|'
+    r'generateStaticParams|generateMetadata|revalidatePath|revalidateTag|'
+    r'NextResponse\.redirect|NextResponse\.rewrite|NextResponse\.next|NextResponse\.json|'
+    r'useRouter|usePathname|useSearchParams|useParams|'
+    r'notFound|permanentRedirect|draftMode|localFont|'
+    r'NextRequest|NextResponse|ImageResponse'
+    r')\b'
 )
 
 # Python dotted module references (os.path.join, json.dumps, etc.)
@@ -412,7 +434,7 @@ def extract_claims(text):
     Covers WordPress, Python, JavaScript/Node, and Laravel patterns."""
     claims = set()
 
-    # WordPress function name patterns
+    # WordPress and WooCommerce function name patterns
     for match in WP_FUNC_PATTERN.finditer(text):
         name = match.group(1)
         if name in SKIP_EXACT:
@@ -422,6 +444,10 @@ def extract_claims(text):
         if is_user_defined_hook(name, text):
             continue
         claims.add(name)
+
+    # React hooks, components, and Next.js APIs
+    for match in REACT_PATTERN.finditer(text):
+        claims.add(match.group(1))
 
     # Python dotted references (os.path.join, json.dumps, etc.)
     for match in PY_DOTTED_PATTERN.finditer(text):
@@ -444,7 +470,7 @@ def extract_claims(text):
             continue
         if name in LARAVEL_HELPERS_SET:
             claims.add(name)
-        elif (name.startswith(('wp_', 'get_', 'set_', 'is_', 'has_', 'add_',
+        elif (name.startswith(('wp_', 'wc_', 'woocommerce_', 'get_', 'set_', 'is_', 'has_', 'add_',
                             'remove_', 'the_', 'esc_', 'sanitize_',
                             'register_', 'unregister_', 'delete_',
                             'update_', 'check_', 'create_', 'do_',
