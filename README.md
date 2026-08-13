@@ -2,26 +2,27 @@
 
 **Catches AI hallucinations in code. Deterministic. Under 1ms. Zero false positives.**
 
-Every AI coding tool hallucinates function names, deprecated APIs, and wrong parameters. Every hallucination detection tool uses another AI to check — which can hallucinate too.
-
-VFault checks against the actual source code. No AI in the verification layer. The function either exists or it doesn't.
+AI coding tools hallucinate function names, deprecated APIs, and wrong parameters across every language. VFault checks against parsed source code. No AI in the verification layer.
 
 🌐 **Website:** [vfault.com](https://vfault.com)
 📡 **Live API:** [exceedweb.pythonanywhere.com](https://exceedweb.pythonanywhere.com)
 📖 **Docs:** [vfault.com/docs.html](https://vfault.com/docs.html)
+🔌 **VS Code:** [Marketplace](https://marketplace.visualstudio.com/items?itemName=exceed-web-services.vfault)
 
 ```
-$ vfault check "Use wp_register_scripts() to register your JS file"
-
+$ vfault verify "Use Array.contains() to check values"
 NOT FOUND — HALLUCINATION CAUGHT
-  wp_register_scripts → did you mean: wp_register_script
+  Array.contains → did you mean: Array.includes
+
+$ vfault verify "Use useState() and useEffect()"
+VERIFIED
+  useState (since 16.8.0) — React
+  useEffect (since 16.8.0) — React
 ```
 
 ## Quick start
 
 ### VS Code extension
-
-Install from the VS Code Marketplace:
 
 Open VS Code, search for **VFault** in the Extensions panel, and click Install. Or run:
 
@@ -42,23 +43,38 @@ git clone https://github.com/Digitalcdj/vfault.git
 cd vfault
 pip install -r requirements.txt
 
-# Run the demo
 python3 vfault.py --demo
-
-# Check any AI-generated code
 python3 vfault.py --check "your AI output here"
-
-# Start the API
 python3 vfault.py --serve
 ```
+
+## 6 ecosystem shards — 167,917 verified triples
+
+| Shard | Functions | Classes | Methods | Triples | Tier |
+|-------|-----------|---------|---------|---------|------|
+| **WordPress** up to 6.9 | 4,591 | — | 27 | 25,398 | Free |
+| **WooCommerce** up to 11.x | 819 | 473 | 4,239 | 32,451 | Pro |
+| **Python** 3.12 stdlib | 2,386 | 1,617 | 6,590 | 36,558 | Pro |
+| **JavaScript** ES2024 + Web APIs + Node.js | 540 | 1,225 | 10,284 | 31,605 | Pro |
+| **Laravel** 11.x | 79 | 2,414 | 15,547 | 41,570 | Pro |
+| **React + Next.js** React 19 + Next.js 15 | 87 | 14 | 12 | 335 | Pro |
+
+WordPress also includes 2,346 hooks. WooCommerce includes 2,533 hooks. More shards coming soon.
 
 ## What it catches
 
 ```
-Hallucinated function:  wp_register_scripts → wp_register_script
-Deprecated function:    get_currentuserinfo → use wp_get_current_user()
-Outdated parameter:     bool $in_footer → (array|bool) $args (WP 6.3+)
-Fabricated hook:        any hook not in WordPress core → flagged
+Hallucinated:   wp_register_scripts → wp_register_script
+Hallucinated:   Array.contains → Array.includes
+Hallucinated:   useFetch → useState, useEffect (not a React hook)
+Deprecated:     get_currentuserinfo → wp_get_current_user() (WP 4.5)
+Deprecated:     ReactDOM.render → ReactDOM.createRoot (React 18)
+Deprecated:     getServerSideProps → Server Components (Next.js 13)
+Deprecated:     componentWillMount → componentDidMount (React 16.3)
+Verified:       wp_enqueue_script (since 2.1.0) — WordPress
+Verified:       useState (since 16.8.0) — React
+Verified:       wc_get_product (since 2.2.0) — WooCommerce
+Verified:       json.dumps — Python
 ```
 
 ## How it's different
@@ -72,31 +88,6 @@ Fabricated hook:        any hook not in WordPress core → flagged
 | Can verifier hallucinate? | Impossible                       | Yes                 |
 | Ecosystem isolation       | Yes (shards)                     | No                  |
 
-## Benchmark results
-
-Tested against three frontier models on 50+ WordPress questions:
-
-| Test                                    | Result                      |
-| --------------------------------------- | --------------------------- |
-| Grok (xAI) — 50 standard questions      | 94 claims, 0 hallucinations |
-| Gemini (Google) — 50 standard questions | 93 claims, 0 hallucinations |
-| Claude (Anthropic) — 8 hard questions   | 61 claims, 4 hallucinations |
-| **Gate caught Claude's hallucinations** | **4/4 (100%)**              |
-| Deliberately fabricated input           | 100% fake functions caught  |
-| False positive rate                     | 0%                          |
-
-## Store contents (WordPress shard)
-
-| Category             | Count  |
-| -------------------- | ------ |
-| Active functions     | 4,192  |
-| Deprecated functions | 402    |
-| Action hooks         | 610    |
-| Filter hooks         | 1,736  |
-| Class methods        | 27     |
-| Total triples        | 25,398 |
-| Database size        | 5.8 MB |
-
 ## API
 
 Base URL: `https://exceedweb.pythonanywhere.com`
@@ -104,27 +95,19 @@ Base URL: `https://exceedweb.pythonanywhere.com`
 All endpoints accept an optional `X-API-Key` header. Without a key, you're on the free tier (100 requests/day).
 
 ```bash
-# Verify text for hallucinations
+# Verify text across all shards
 curl -X POST https://exceedweb.pythonanywhere.com/verify \
   -H "Content-Type: application/json" \
-  -d '{"text": "Use wp_register_scripts() to add JS"}'
+  -d '{"text": "Use useState() and wp_register_scripts()"}'
 
-# Look up a specific function
-curl https://exceedweb.pythonanywhere.com/lookup/wp_enqueue_script
+# Look up a function
+curl https://exceedweb.pythonanywhere.com/lookup/useState
 
-# Search functions by prefix
-curl https://exceedweb.pythonanywhere.com/search/wp_enqueue
+# Search by prefix
+curl https://exceedweb.pythonanywhere.com/search/use
 
-# Compare parameter signatures
-curl -X POST https://exceedweb.pythonanywhere.com/compare_params \
-  -H "Content-Type: application/json" \
-  -d '{"function": "wp_enqueue_script", "stated_params": "bool $in_footer"}'
-
-# Check your usage
+# Check usage
 curl https://exceedweb.pythonanywhere.com/usage
-
-# Store statistics
-curl https://exceedweb.pythonanywhere.com/stats
 
 # Health check
 curl https://exceedweb.pythonanywhere.com/health
@@ -132,82 +115,41 @@ curl https://exceedweb.pythonanywhere.com/health
 
 ## Pricing
 
-| Tier           | What you get                                    | Price          |
-| -------------- | ----------------------------------------------- | -------------- |
-| **Free**       | WordPress shard + CLI + VS Code + 100 req/day   | £0 forever     |
-| **Pro**        | All shards + 5,000 req/day + API key            | £19/month      |
-| **Team**       | All shards + 20,000 req/day + team keys         | £49/month      |
-| **Enterprise** | Custom shard + 100,000 req/day + priority       | From £199/month |
+| Tier | Developers | Daily requests | Price |
+|------|-----------|---------------|-------|
+| **Free** | 1 | 100 | £0 forever |
+| **Pro** | 1 | 5,000 | £19/month |
+| **Team** | 5 | 15,000 | £49/month |
+| **Business** | 15 | 50,000 | £99/month |
+| **Enterprise** | Unlimited | 100,000 | From £199/month |
 
-The CLI and WordPress shard are free forever. The hosted service saves you from running infrastructure.
+WordPress shard is free forever. All paid shards included with Pro and above.
 
 ## Roadmap
 
 - [x] Three-agent pipeline architecture
 - [x] WordPress shard — 25,398 triples
+- [x] WooCommerce shard — 32,451 triples
+- [x] Python shard — 36,558 triples
+- [x] JavaScript shard — 31,605 triples (ES2024 + Web APIs + Node.js)
+- [x] Laravel shard — 41,570 triples
+- [x] React + Next.js shard — 335 triples
 - [x] CLI tool
-- [x] FastAPI web server with 7 endpoints
-- [x] Live API deployed on PythonAnywhere
+- [x] Live API on PythonAnywhere
+- [x] VS Code extension on Marketplace
+- [x] API key auth + tiered rate limiting
+- [x] Shard gating (free vs paid)
+- [x] Website — 5 pages, PageSpeed 100
 - [x] Benchmarks across 3 frontier models
-- [x] Website with live demo — vfault.com
-- [x] VS Code extension with diagnostics, hover, quick-fix, autocomplete
-- [x] API key authentication and tiered rate limiting
-- [x] Lemon Squeezy webhook integration
-- [ ] VS Code Marketplace publication
-- [ ] Lemon Squeezy store live
-- [ ] WooCommerce shard
-- [ ] Python, JavaScript, Laravel shards on public API
-- [ ] React / Next.js shard
+- [ ] Lemon Squeezy payments live
 - [ ] Django shard
+- [ ] FastAPI shard
+- [ ] Tailwind CSS shard
+- [ ] WordPress 7.1 shard rebuild
 - [ ] CI/CD GitHub Action
-
-## Rebuild the store
-
-```
-git clone --depth 1 https://github.com/WordPress/WordPress.git wordpress-source
-cd shards/wordpress
-python3 parser.py ../../wordpress-source
-cd ../..
-```
-
-Run after each WordPress release to keep the store current.
-
-## Run tests
-
-```
-python3 tests/run_tests.py
-```
-
-## Project structure
-
-```
-vfault/
-├── vfault.py                    # Gate CLI + API
-├── requirements.txt             # fastapi, uvicorn
-├── LICENSE                      # MIT
-├── shards/
-│   └── wordpress/
-│       ├── parser.py            # Parses WP source → triples
-│       ├── wordpress.db         # 25,398 verified triples
-│       └── summary.json         # Store statistics
-├── tests/
-│   ├── run_tests.py             # Automated test suite
-│   └── benchmark_questions.txt  # 50 test questions
-└── docs/
-    └── architecture.md          # Full architecture paper
-```
-
-## Contributing
-
-Contributions welcome:
-
-- **New shards:** WooCommerce, ACF, React, Django
-- **Gate improvements:** better extraction, streaming mode
-- **Benchmarks:** more models, harder questions, real-world codebases
-- **Documentation:** tutorials, integration guides
 
 ## Author
 
-Ian Fraser — [Exceed Web Services](https://exceedwebservices.co.uk) · Ceredigion, Wales
+Ian Fraser — [Exceed Web Services](https://www.exceedwebservices.com) · Ceredigion, Wales
 
 *VFault: verification at the fault lines.*
