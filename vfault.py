@@ -389,6 +389,14 @@ SKIP_EXACT = {
     'post_date', 'post_name', 'post_parent', 'post_excerpt',
     'post_modified', 'comment_status', 'ping_status', 'post_password',
     'menu_order', 'post_mime_type', 'comment_count',
+    # Common English words that match function names
+    'render', 'use', 'call', 'get', 'set', 'update', 'delete',
+    'create', 'check', 'add', 'remove', 'register', 'apply',
+    'load', 'save', 'send', 'read', 'write', 'run', 'start',
+    'stop', 'init', 'reset', 'clear', 'close', 'open', 'format',
+    'filter', 'sort', 'merge', 'split', 'join', 'map', 'reduce',
+    'import', 'export', 'include', 'require', 'return', 'print',
+    'log', 'error', 'warn', 'debug', 'test', 'assert',
 }
 
 # Known capability strings (used as values, not functions)
@@ -576,7 +584,7 @@ def verify_claim(name, allowed_shards=None):
     suggestions = []
 
     # Tier 1: Fuzzy match (close spelling — typos, plurals, underscores)
-    close = get_close_matches(name, all_subjects, n=5, cutoff=0.7)
+    close = get_close_matches(name, all_subjects, n=5, cutoff=0.5)
     suggestions.extend(close)
 
     # Tier 2: Namespace match — same module/prefix, list available functions
