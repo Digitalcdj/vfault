@@ -284,6 +284,145 @@ def verify_lemonsqueezy_signature(payload_bytes, signature):
 
 
 # ---------------------------------------------------------------------------
+# Email sending (via Brevo SMTP)
+# ---------------------------------------------------------------------------
+
+BREVO_SMTP_HOST = os.environ.get('BREVO_SMTP_HOST', 'smtp-relay.brevo.com')
+BREVO_SMTP_PORT = int(os.environ.get('BREVO_SMTP_PORT', '587'))
+BREVO_SMTP_USER = os.environ.get('BREVO_SMTP_USER', '')
+BREVO_SMTP_PASS = os.environ.get('BREVO_SMTP_PASS', '')
+VFAULT_FROM_EMAIL = os.environ.get('VFAULT_FROM_EMAIL', 'vfault@exceedwebservices.com')
+VFAULT_FROM_NAME = os.environ.get('VFAULT_FROM_NAME', 'VFault')
+
+
+def send_api_key_email(to_email, api_key, plan='pro'):
+    """Send the API key to the customer via Brevo SMTP."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    if not BREVO_SMTP_USER or not BREVO_SMTP_PASS:
+        print(f"[VFault] SMTP not configured — cannot email {to_email}")
+        return False
+
+    subject = "Your VFault API Key"
+
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0c0c0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:40px 24px;">
+
+<div style="height:3px;background:linear-gradient(90deg,#1baf7a,#0a7a52);margin-bottom:32px;border-radius:2px;"></div>
+
+<div style="font-size:20px;font-weight:500;color:#e8e6df;margin-bottom:32px;">
+<span style="color:#1baf7a;">V</span>Fault
+</div>
+
+<h1 style="font-size:24px;font-weight:600;color:#e8e6df;margin:0 0 16px;">Welcome to VFault {plan.title()}</h1>
+
+<p style="font-size:16px;color:#c3c2b7;line-height:1.6;margin:0 0 24px;">
+Your API key is ready. Use it to access all paid shards across WordPress, WooCommerce, Python, JavaScript, Laravel, and React.
+</p>
+
+<div style="background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px;padding:20px;margin:0 0 24px;">
+<div style="font-size:12px;color:#9a9890;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Your API Key</div>
+<div style="font-size:16px;font-family:ui-monospace,'Cascadia Mono','SF Mono',Consolas,monospace;color:#1baf7a;word-break:break-all;">{api_key}</div>
+</div>
+
+<h2 style="font-size:18px;font-weight:500;color:#e8e6df;margin:0 0 12px;">Getting started</h2>
+
+<p style="font-size:14px;color:#c3c2b7;line-height:1.7;margin:0 0 8px;">
+<strong style="color:#e8e6df;">API requests:</strong> Include your key in the X-API-Key header:
+</p>
+
+<div style="background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px;padding:16px;margin:0 0 24px;font-size:13px;font-family:ui-monospace,Consolas,monospace;color:#9a9890;overflow-x:auto;">
+curl -H "X-API-Key: {api_key}" \\<br>
+&nbsp;&nbsp;https://exceedweb.pythonanywhere.com/verify \\<br>
+&nbsp;&nbsp;-X POST -H "Content-Type: application/json" \\<br>
+&nbsp;&nbsp;-d '{{"text": "your code here"}}'
+</div>
+
+<p style="font-size:14px;color:#c3c2b7;line-height:1.7;margin:0 0 8px;">
+<strong style="color:#e8e6df;">VS Code extension:</strong> Add the key to your VS Code settings under <span style="font-family:monospace;color:#1baf7a;">vfault.apiKey</span>.
+</p>
+
+<p style="font-size:14px;color:#c3c2b7;line-height:1.7;margin:0 0 24px;">
+<strong style="color:#e8e6df;">Check usage:</strong> Visit <a href="https://exceedweb.pythonanywhere.com/usage" style="color:#1baf7a;">exceedweb.pythonanywhere.com/usage</a> with your key to see remaining requests.
+</p>
+
+<h2 style="font-size:18px;font-weight:500;color:#e8e6df;margin:0 0 12px;">Your plan</h2>
+
+<div style="background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px;padding:16px;margin:0 0 32px;">
+<table style="width:100%;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:6px 0;color:#9a9890;">Plan</td><td style="padding:6px 0;color:#e8e6df;">{plan.title()}</td></tr>
+<tr><td style="padding:6px 0;color:#9a9890;">Daily requests</td><td style="padding:6px 0;color:#e8e6df;">5,000</td></tr>
+<tr><td style="padding:6px 0;color:#9a9890;">Shards</td><td style="padding:6px 0;color:#e8e6df;">All (WordPress, WooCommerce, Python, JavaScript, Laravel, React)</td></tr>
+<tr><td style="padding:6px 0;color:#9a9890;">Support</td><td style="padding:6px 0;color:#e8e6df;">Priority email</td></tr>
+</table>
+</div>
+
+<p style="font-size:14px;color:#c3c2b7;line-height:1.7;margin:0 0 8px;">
+Full documentation at <a href="https://vfault.com/docs.html" style="color:#1baf7a;">vfault.com/docs.html</a>
+</p>
+
+<p style="font-size:14px;color:#c3c2b7;line-height:1.7;margin:0 0 32px;">
+Questions? Reply to this email or contact <a href="mailto:vfault@exceedwebservices.com" style="color:#1baf7a;">vfault@exceedwebservices.com</a>
+</p>
+
+<div style="border-top:1px solid #2c2c2a;padding-top:24px;font-size:12px;color:#9a9890;">
+VFault — Verification at the fault lines<br>
+Built by <a href="https://www.exceedwebservices.com" style="color:#9a9890;">Ian Fraser — Exceed Web Services</a> · Ceredigion, Wales
+</div>
+
+</div>
+</body>
+</html>"""
+
+    plain_body = f"""Welcome to VFault {plan.title()}
+
+Your API Key: {api_key}
+
+Include it in the X-API-Key header on all API requests.
+
+Plan: {plan.title()}
+Daily requests: 5,000
+Shards: All (WordPress, WooCommerce, Python, JavaScript, Laravel, React)
+
+Docs: https://vfault.com/docs.html
+Usage: https://exceedweb.pythonanywhere.com/usage
+
+Questions? Contact vfault@exceedwebservices.com
+
+VFault — Verification at the fault lines
+Built by Ian Fraser — Exceed Web Services
+"""
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = f"{VFAULT_FROM_NAME} <{VFAULT_FROM_EMAIL}>"
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg['Reply-To'] = VFAULT_FROM_EMAIL
+
+        msg.attach(MIMEText(plain_body, 'plain'))
+        msg.attach(MIMEText(html_body, 'html'))
+
+        server = smtplib.SMTP(BREVO_SMTP_HOST, BREVO_SMTP_PORT)
+        server.starttls()
+        server.login(BREVO_SMTP_USER, BREVO_SMTP_PASS)
+        server.send_message(msg)
+        server.quit()
+
+        print(f"[VFault] API key emailed to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"[VFault] Email failed to {to_email}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Claim extraction
 # ---------------------------------------------------------------------------
 
@@ -397,6 +536,34 @@ SKIP_EXACT = {
     'filter', 'sort', 'merge', 'split', 'join', 'map', 'reduce',
     'import', 'export', 'include', 'require', 'return', 'print',
     'log', 'error', 'warn', 'debug', 'test', 'assert',
+}
+
+# Known third-party library functions — not hallucinations, just not in our shards
+KNOWN_THIRD_PARTY = {
+    'useSWR': 'swr', 'useSWRConfig': 'swr', 'useSWRMutation': 'swr',
+    'useSWRInfinite': 'swr', 'useSWRSubscription': 'swr',
+    'useQuery': '@tanstack/react-query', 'useMutation': '@tanstack/react-query',
+    'useQueryClient': '@tanstack/react-query', 'useInfiniteQuery': '@tanstack/react-query',
+    'useIsFetching': '@tanstack/react-query', 'useSuspenseQuery': '@tanstack/react-query',
+    'useForm': 'react-hook-form', 'useController': 'react-hook-form',
+    'useFormContext': 'react-hook-form', 'useWatch': 'react-hook-form',
+    'useFieldArray': 'react-hook-form',
+    'useStore': 'zustand',
+    'useSelector': 'react-redux', 'useDispatch': 'react-redux',
+    'useAnimation': 'framer-motion', 'useMotionValue': 'framer-motion',
+    'useSpring': 'framer-motion', 'useScroll': 'framer-motion',
+    'useInView': 'framer-motion',
+    'axios.get': 'axios', 'axios.post': 'axios', 'axios.put': 'axios',
+    'axios.delete': 'axios', 'axios.patch': 'axios', 'axios.create': 'axios',
+    '_.debounce': 'lodash', '_.throttle': 'lodash', '_.cloneDeep': 'lodash',
+    '_.merge': 'lodash', '_.get': 'lodash', '_.set': 'lodash',
+    '_.isEmpty': 'lodash', '_.isEqual': 'lodash', '_.uniq': 'lodash',
+    '_.groupBy': 'lodash', '_.sortBy': 'lodash',
+    'requests.get': 'requests', 'requests.post': 'requests',
+    'requests.put': 'requests', 'requests.delete': 'requests',
+    'pd.DataFrame': 'pandas', 'pd.read_csv': 'pandas',
+    'np.array': 'numpy', 'np.zeros': 'numpy', 'np.ones': 'numpy',
+    'plt.plot': 'matplotlib', 'plt.show': 'matplotlib',
 }
 
 # Known capability strings (used as values, not functions)
@@ -656,6 +823,16 @@ def verify_claim(name, allowed_shards=None):
             unique.append(s)
     suggestions = unique[:5]
 
+    # Check if it's a known third-party library function
+    if name in KNOWN_THIRD_PARTY:
+        return {
+            'name': name,
+            'exists': True,
+            'status': 'third_party',
+            'library': KNOWN_THIRD_PARTY[name],
+            'message': f"Third-party library function from {KNOWN_THIRD_PARTY[name]}. Not covered by VFault shards.",
+        }
+
     result = {
         'name': name,
         'exists': False,
@@ -762,6 +939,7 @@ def verify_text(text, allowed_shards=None):
         'deprecated': [],
         'not_found': [],
         'upgrade_required': [],
+        'third_party': [],
         'summary': {}
     }
 
@@ -776,6 +954,8 @@ def verify_text(text, allowed_shards=None):
             results['not_found'].append(v)
         elif v['status'] == 'upgrade_required':
             results['upgrade_required'].append(v)
+        elif v['status'] == 'third_party':
+            results['third_party'].append(v)
 
     results['summary'] = {
         'total_claims': len(claims),
@@ -783,6 +963,7 @@ def verify_text(text, allowed_shards=None):
         'deprecated': len(results['deprecated']),
         'not_found': len(results['not_found']),
         'upgrade_required': len(results['upgrade_required']),
+        'third_party': len(results['third_party']),
         'hallucination_rate': (
             f"{len(results['not_found']) / len(claims) * 100:.1f}%"
             if claims else "0%"
