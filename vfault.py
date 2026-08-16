@@ -473,14 +473,18 @@ PY_DOTTED_PATTERN = re.compile(
     r'\.[\w.]{1,80})\b'
 )
 
-# JavaScript/Node dotted references (fs.readFile, JSON.parse, etc.)
+# JavaScript/Node/Third-party dotted references
 JS_DOTTED_PATTERN = re.compile(
     r'\b((?:fs|path|http|https|crypto|url|util|os|net|dns|tls|'
     r'stream|buffer|events|child_process|cluster|zlib|readline|'
     r'vm|worker_threads|http2|dgram|perf_hooks|querystring|'
     r'JSON|Math|Array|Object|String|Number|Promise|Buffer|'
     r'RegExp|Map|Set|Date|Error|console|process|'
-    r'Array\.prototype|String\.prototype|Object)'
+    r'Array\.prototype|String\.prototype|Object|'
+    r'ReactDOM|ReactDOMServer|NextResponse|NextRequest|'
+    r'axios|express|mongoose|moment|dayjs|'
+    r'_|pd|np|plt|tf|torch|scipy|sk|cv2|'
+    r'jest|expect|assert|chai|sinon|cy)'
     r'\.[\w.]{1,80})\b'
 )
 
