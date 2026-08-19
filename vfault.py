@@ -506,6 +506,16 @@ LARAVEL_HELPERS_SET = {
     'data_fill', 'data_forget', 'transform',
 }
 
+# Class::method and $obj->method patterns (for class/method pairing validation)
+CLASS_METHOD_PATTERN = re.compile(
+    r'\b([A-Z][a-zA-Z_0-9]+)(?:::|\->)([a-z_][a-z_0-9]*)\b'
+)
+
+# Function calls with parameter text (for param comparison second pass)
+FUNC_CALL_WITH_PARAMS = re.compile(
+    r'\b([a-zA-Z_][\w]*)\s*\(([^)]{1,500})\)'
+)
+
 # Also catch function calls with parentheses
 WP_CALL_PATTERN = re.compile(
     r'\b([a-z_]{3,80})\s*\('
@@ -684,6 +694,34 @@ def extract_claims(text):
         filtered.add(name)
 
     return list(filtered)
+
+
+def extract_class_method_pairs(text):
+    """Extract ClassName::method and ClassName->method pairs from text.
+    Returns list of dicts: {'class': 'WC_Product', 'method': 'get_total'}"""
+    pairs = []
+    for match in CLASS_METHOD_PATTERN.finditer(text):
+        class_name = match.group(1)
+        method_name = match.group(2)
+        if method_name not in SKIP_EXACT:
+            pairs.append({'class': class_name, 'method': method_name})
+    return pairs
+
+
+def extract_calls_with_params(text):
+    """Extract function calls with their stated parameter text.
+    Returns dict: {'func_name': 'stated_params_text', ...}
+    Only captures calls containing $ (PHP-style params) for comparison."""
+    calls = {}
+    for match in FUNC_CALL_WITH_PARAMS.finditer(text):
+        func_name = match.group(1)
+        params_text = match.group(2).strip()
+        # Only capture if it contains PHP-style $param references
+        if '$' in params_text and func_name not in SKIP_EXACT:
+            # Take the first occurrence (most likely to be a signature/definition)
+            if func_name not in calls:
+                calls[func_name] = params_text
+    return calls
 
 
 # ---------------------------------------------------------------------------
@@ -944,6 +982,8 @@ def verify_text(text, allowed_shards=None):
         'not_found': [],
         'upgrade_required': [],
         'third_party': [],
+        'param_issues': [],
+        'class_mismatches': [],
         'summary': {}
     }
 
@@ -961,6 +1001,77 @@ def verify_text(text, allowed_shards=None):
         elif v['status'] == 'third_party':
             results['third_party'].append(v)
 
+    # ── Second pass: parameter comparison ─────────────────────────
+    # Extract function calls with stated params from the text,
+    # then compare against stored signatures for verified functions.
+    calls_with_params = extract_calls_with_params(text)
+    verified_names = {v['name'] for v in results['verified']}
+    deprecated_names = {v['name'] for v in results['deprecated']}
+    checkable = verified_names | deprecated_names
+
+    for func_name, stated_params in calls_with_params.items():
+        if func_name not in checkable:
+            continue
+        param_result = compare_params(func_name, stated_params, allowed_shards)
+        if param_result and param_result['status'] == 'param_mismatch':
+            results['param_issues'].append(param_result)
+
+    # ── Second pass: class/method pairing validation ──────────────
+    # Extract ClassName::method and ClassName->method pairs,
+    # then check if the method actually belongs to the stated class.
+    # Shard subjects are stored as "ClassName.method_name".
+    class_method_pairs = extract_class_method_pairs(text)
+    for pair in class_method_pairs:
+        method_name = pair['method']
+        stated_class = pair['class']
+
+        # Construct the expected subject key
+        stated_key = f"{stated_class}.{method_name}"
+
+        if stated_key in HOT_CACHE:
+            # Correct pairing, nothing to flag
+            continue
+
+        # Method not found under stated class. Search for it under other classes.
+        actual_owners = []
+        search_suffix = f".{method_name}"
+        for subject in HOT_CACHE:
+            if subject.endswith(search_suffix):
+                # Get the class predicate to confirm
+                for t in HOT_CACHE[subject]:
+                    if t['predicate'] == 'class':
+                        actual_owners.append(t['object'])
+                        break
+
+        if not actual_owners:
+            # Method doesn't exist under any class, skip (main pass handles it)
+            continue
+
+        # Filter by allowed shards
+        if allowed_shards:
+            filtered_owners = []
+            for owner in actual_owners:
+                owner_key = f"{owner}.{method_name}"
+                owner_triples = get_triples(owner_key, allowed_shards)
+                if owner_triples:
+                    filtered_owners.append(owner)
+            actual_owners = filtered_owners
+
+        if not actual_owners:
+            continue
+
+        results['class_mismatches'].append({
+            'method': method_name,
+            'stated_class': stated_class,
+            'actual_classes': actual_owners,
+            'status': 'class_mismatch',
+            'message': (
+                f"CLASS MISMATCH: {stated_class}::{method_name} "
+                f"but {method_name} belongs to "
+                f"{', '.join(actual_owners)}."
+            ),
+        })
+
     results['summary'] = {
         'total_claims': len(claims),
         'verified': len(results['verified']),
@@ -968,6 +1079,8 @@ def verify_text(text, allowed_shards=None):
         'not_found': len(results['not_found']),
         'upgrade_required': len(results['upgrade_required']),
         'third_party': len(results['third_party']),
+        'param_issues': len(results['param_issues']),
+        'class_mismatches': len(results['class_mismatches']),
         'hallucination_rate': (
             f"{len(results['not_found']) / len(claims) * 100:.1f}%"
             if claims else "0%"
@@ -1297,10 +1410,12 @@ def cli_check(text):
     print("VFAULT VERIFICATION REPORT")
     print("=" * 60)
     print()
-    print(f"Claims found: {results['summary']['total_claims']}")
-    print(f"Verified:     {results['summary']['verified']}")
-    print(f"Deprecated:   {results['summary']['deprecated']}")
-    print(f"Not found:    {results['summary']['not_found']}")
+    print(f"Claims found:       {results['summary']['total_claims']}")
+    print(f"Verified:           {results['summary']['verified']}")
+    print(f"Deprecated:         {results['summary']['deprecated']}")
+    print(f"Not found:          {results['summary']['not_found']}")
+    print(f"Param issues:       {results['summary']['param_issues']}")
+    print(f"Class mismatches:   {results['summary']['class_mismatches']}")
     print(f"Hallucination rate: {results['summary']['hallucination_rate']}")
 
     if results['verified']:
@@ -1328,6 +1443,22 @@ def cli_check(text):
             print(f"  {v['name']}")
             if v.get('suggestions'):
                 print(f"    suggestions: {', '.join(v['suggestions'])}")
+
+    if results['param_issues']:
+        print()
+        print("PARAMETER ISSUES")
+        print("-" * 40)
+        for p in results['param_issues']:
+            print(f"  {p['function']}: {p['message']}")
+            print(f"    stored:  {p['stored_params']}")
+            print(f"    stated:  {p['stated_params']}")
+
+    if results['class_mismatches']:
+        print()
+        print("CLASS/METHOD MISMATCHES")
+        print("-" * 40)
+        for c in results['class_mismatches']:
+            print(f"  {c['message']}")
 
     print()
     return results
