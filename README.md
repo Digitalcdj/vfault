@@ -71,6 +71,9 @@ Deprecated:     get_currentuserinfo → wp_get_current_user() (WP 4.5)
 Deprecated:     ReactDOM.render → ReactDOM.createRoot (React 18)
 Deprecated:     getServerSideProps → Server Components (Next.js 13)
 Deprecated:     componentWillMount → componentDidMount (React 16.3)
+Param mismatch: wp_enqueue_script($in_footer) → $args (renamed in WP 6.3)
+Class mismatch: WC_Product::get_total → belongs to WC_Abstract_Order
+Class mismatch: WC_Order::get_price → belongs to WC_Product
 Verified:       wp_enqueue_script (since 2.1.0) — WordPress
 Verified:       useState (since 16.8.0) — React
 Verified:       wc_get_product (since 2.2.0) — WooCommerce
@@ -139,8 +142,10 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ VS Code extension on Marketplace
 - ✅ API key auth + tiered rate limiting
 - ✅ Shard gating (free vs paid)
-- ✅ Website — 5 pages, PageSpeed 100
+- ✅ Website — 6 pages, PageSpeed 100
 - ✅ Benchmarks across 3 frontier models
+- ✅ Parameter mismatch detection in /verify (second pass)
+- ✅ Class/method pairing validation in /verify (second pass)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
 - ⬜ FastAPI shard
