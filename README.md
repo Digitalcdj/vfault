@@ -74,6 +74,9 @@ Deprecated:     componentWillMount → componentDidMount (React 16.3)
 Param mismatch: wp_enqueue_script($in_footer) → $args (renamed in WP 6.3)
 Class mismatch: WC_Product::get_total → belongs to WC_Abstract_Order
 Class mismatch: WC_Order::get_price → belongs to WC_Product
+Unknown:        useShoppingCart — custom hook, not flagged as hallucination
+Unknown:        usePaymentFlow — outside shard scope, may be private code
+Whitelisted:    get_my_custom_data — skipped (matches whitelist prefix)
 Verified:       wp_enqueue_script (since 2.1.0) — WordPress
 Verified:       useState (since 16.8.0) — React
 Verified:       wc_get_product (since 2.2.0) — WooCommerce
@@ -102,6 +105,11 @@ All endpoints accept an optional `X-API-Key` header. Without a key, you're on th
 curl -X POST https://exceedweb.pythonanywhere.com/verify \
   -H "Content-Type: application/json" \
   -d '{"text": "Use useState() and wp_register_scripts()"}'
+
+# Verify with whitelist (skip your private functions)
+curl -X POST https://exceedweb.pythonanywhere.com/verify \
+  -H "Content-Type: application/json" \
+  -d '{"text": "get_my_custom_data() and wp_enqueue_script()", "whitelist": ["get_my_custom_"]}'
 
 # Look up a function
 curl https://exceedweb.pythonanywhere.com/lookup/useState
@@ -146,6 +154,8 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ Benchmarks across 3 frontier models
 - ✅ Parameter mismatch detection in /verify (second pass)
 - ✅ Class/method pairing validation in /verify (second pass)
+- ✅ Unknown vs not_found separation (private code awareness)
+- ✅ Whitelist parameter for /verify (skip private namespaces)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
 - ⬜ FastAPI shard
