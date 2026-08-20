@@ -59,6 +59,63 @@ FREE_SHARDS = {'wordpress'}
 PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react'}
 ALL_SHARDS = FREE_SHARDS | PAID_SHARDS
 
+# Namespace patterns: if a name matches any of these, it *should* be in a shard.
+# Names that don't match any pattern are likely private/custom code -> "unknown".
+SHARD_NAMESPACE_PREFIXES = (
+    'wp_', 'WP_', 'wc_', 'get_', 'set_', 'is_', 'has_', 'add_', 'remove_',
+    'do_', 'apply_', 'register_', 'unregister_', 'delete_', 'update_',
+    'check_', 'create_', 'edit_', 'the_', 'have_', 'sanitize_', 'esc_',
+    'current_user_', 'get_user_', 'wp_ajax_', 'admin_', 'comment_',
+    'post_', 'term_', 'taxonomy_', 'nav_menu_', 'sidebar_', 'widget_',
+    'shortcode_', 'media_', 'plugin_', 'theme_', 'block_', 'rest_',
+    'woocommerce_',
+)
+
+SHARD_NAMESPACE_DOTTED_MODULES = (
+    'os.', 'sys.', 'json.', 're.', 'math.', 'datetime.', 'collections.',
+    'pathlib.', 'hashlib.', 'random.', 'itertools.', 'functools.', 'typing.',
+    'io.', 'csv.', 'sqlite3.', 'http.', 'urllib.', 'logging.', 'threading.',
+    'asyncio.', 'subprocess.', 'shutil.', 'tempfile.', 'pickle.', 'copy.',
+    'pprint.', 'string.', 'textwrap.', 'struct.', 'enum.', 'dataclasses.',
+    'abc.', 'contextlib.', 'decimal.', 'fractions.', 'statistics.', 'secrets.',
+    'hmac.', 'base64.', 'email.', 'html.', 'xml.', 'configparser.', 'argparse.',
+    'unittest.', 'doctest.', 'socket.', 'ssl.', 'select.', 'signal.', 'queue.',
+    'multiprocessing.', 'concurrent.',
+    'fs.', 'path.', 'crypto.', 'url.', 'util.', 'net.', 'dns.', 'tls.',
+    'stream.', 'buffer.', 'events.', 'child_process.', 'cluster.', 'zlib.',
+    'readline.', 'vm.', 'worker_threads.', 'http2.', 'dgram.', 'perf_hooks.',
+    'querystring.', 'JSON.', 'Math.', 'Array.', 'Object.', 'String.',
+    'Number.', 'Promise.', 'Buffer.', 'RegExp.', 'Map.', 'Set.', 'Date.',
+    'Error.', 'console.', 'process.',
+    'ReactDOM.', 'ReactDOMServer.', 'NextResponse.', 'NextRequest.',
+)
+
+SHARD_REACT_HOOK_PATTERN = re.compile(r'^use[A-Z]')
+
+
+def is_shard_namespace(name):
+    """Check if a name looks like it belongs to a known shard namespace.
+    Returns True if the name should be in a shard (and not_found means hallucination).
+    Returns False if the name is likely private/custom code (unknown, not hallucination)."""
+    # WordPress/WooCommerce/PHP prefixed functions
+    if any(name.startswith(p) for p in SHARD_NAMESPACE_PREFIXES):
+        return True
+    # Python/JS dotted module references
+    if any(name.startswith(m) for m in SHARD_NAMESPACE_DOTTED_MODULES):
+        return True
+    # React hooks: use[A-Z]... could be custom hooks (useShoppingCart, useAuth)
+    # so they go to "unknown" not "not_found" — custom hooks are expected
+    # Laravel helpers
+    if name in LARAVEL_HELPERS_SET:
+        return True
+    # Class.method patterns from known shard classes
+    if '.' in name:
+        class_part = name.split('.')[0]
+        # Known shard class prefixes
+        if class_part.startswith(('WP_', 'WC_', 'Illuminate')):
+            return True
+    return False
+
 def get_allowed_shards(plan):
     """Return the set of shard domains a plan can access."""
     if plan in ('pro', 'team', 'business', 'enterprise'):
@@ -728,8 +785,20 @@ def extract_calls_with_params(text):
 # Verification
 # ---------------------------------------------------------------------------
 
-def verify_claim(name, allowed_shards=None):
-    """Verify a single function/hook name against the store."""
+def verify_claim(name, allowed_shards=None, whitelist=None):
+    """Verify a single function/hook name against the store.
+    If whitelist is provided, names matching any prefix are skipped (whitelisted)."""
+    # Whitelist check: skip names matching user's private namespaces
+    if whitelist:
+        for prefix in whitelist:
+            if name.startswith(prefix):
+                return {
+                    'name': name,
+                    'exists': True,
+                    'status': 'whitelisted',
+                    'message': f"Skipped — matches whitelist prefix '{prefix}'.",
+                }
+
     # Hot cache lookup (microseconds)
     if name in HOT_CACHE:
         triples = get_triples(name, allowed_shards)
@@ -875,16 +944,30 @@ def verify_claim(name, allowed_shards=None):
             'message': f"Third-party library function from {KNOWN_THIRD_PARTY[name]}. Not covered by VFault shards.",
         }
 
-    result = {
-        'name': name,
-        'exists': False,
-        'status': 'not_found',
-        'message': f"NOT FOUND. This may be a hallucination.",
-    }
+    # Determine if this is a hallucination (shard namespace) or unknown (private code)
+    in_shard_scope = is_shard_namespace(name)
+
+    if in_shard_scope:
+        result = {
+            'name': name,
+            'exists': False,
+            'status': 'not_found',
+            'message': f"NOT FOUND. This may be a hallucination.",
+        }
+    else:
+        result = {
+            'name': name,
+            'exists': False,
+            'status': 'unknown',
+            'message': f"Unknown — not in any public shard. May be private/custom code.",
+        }
 
     if suggestions:
         result['suggestions'] = suggestions
-        result['message'] += f" Did you mean: {', '.join(suggestions[:3])}?"
+        if in_shard_scope:
+            result['message'] += f" Did you mean: {', '.join(suggestions[:3])}?"
+        else:
+            result['message'] += f" Closest public matches: {', '.join(suggestions[:3])}"
 
     return result
 
@@ -970,8 +1053,9 @@ def compare_params(func_name, stated_params_text, allowed_shards=None):
     return result
 
 
-def verify_text(text, allowed_shards=None):
-    """Extract and verify all claims in a block of text."""
+def verify_text(text, allowed_shards=None, whitelist=None):
+    """Extract and verify all claims in a block of text.
+    whitelist: optional list of namespace prefixes to skip (private code)."""
     claims = extract_claims(text)
 
     results = {
@@ -980,6 +1064,8 @@ def verify_text(text, allowed_shards=None):
         'verified': [],
         'deprecated': [],
         'not_found': [],
+        'unknown': [],
+        'whitelisted': [],
         'upgrade_required': [],
         'third_party': [],
         'param_issues': [],
@@ -988,7 +1074,7 @@ def verify_text(text, allowed_shards=None):
     }
 
     for claim in sorted(claims):
-        v = verify_claim(claim, allowed_shards)
+        v = verify_claim(claim, allowed_shards, whitelist)
 
         if v['status'] == 'verified':
             results['verified'].append(v)
@@ -996,6 +1082,10 @@ def verify_text(text, allowed_shards=None):
             results['deprecated'].append(v)
         elif v['status'] == 'not_found':
             results['not_found'].append(v)
+        elif v['status'] == 'unknown':
+            results['unknown'].append(v)
+        elif v['status'] == 'whitelisted':
+            results['whitelisted'].append(v)
         elif v['status'] == 'upgrade_required':
             results['upgrade_required'].append(v)
         elif v['status'] == 'third_party':
@@ -1077,6 +1167,8 @@ def verify_text(text, allowed_shards=None):
         'verified': len(results['verified']),
         'deprecated': len(results['deprecated']),
         'not_found': len(results['not_found']),
+        'unknown': len(results['unknown']),
+        'whitelisted': len(results['whitelisted']),
         'upgrade_required': len(results['upgrade_required']),
         'third_party': len(results['third_party']),
         'param_issues': len(results['param_issues']),
@@ -1189,6 +1281,7 @@ def create_app():
 
     class VerifyRequest(BaseModel):
         text: str = Field(..., max_length=MAX_INPUT_LENGTH)
+        whitelist: Optional[list] = Field(None, max_length=50)
 
     class ParamCompareRequest(BaseModel):
         function: str = Field(..., max_length=200)
@@ -1221,7 +1314,7 @@ def create_app():
                 status_code=413,
                 detail=f"Input too large. Max {MAX_INPUT_LENGTH} characters."
             )
-        result = verify_text(req.text)
+        result = verify_text(req.text, whitelist=req.whitelist)
         result['plan'] = auth['plan']
         result['daily_remaining'] = auth['daily_remaining']
         return result
@@ -1414,6 +1507,8 @@ def cli_check(text):
     print(f"Verified:           {results['summary']['verified']}")
     print(f"Deprecated:         {results['summary']['deprecated']}")
     print(f"Not found:          {results['summary']['not_found']}")
+    print(f"Unknown:            {results['summary']['unknown']}")
+    print(f"Whitelisted:        {results['summary']['whitelisted']}")
     print(f"Param issues:       {results['summary']['param_issues']}")
     print(f"Class mismatches:   {results['summary']['class_mismatches']}")
     print(f"Hallucination rate: {results['summary']['hallucination_rate']}")
@@ -1443,6 +1538,22 @@ def cli_check(text):
             print(f"  {v['name']}")
             if v.get('suggestions'):
                 print(f"    suggestions: {', '.join(v['suggestions'])}")
+
+    if results['unknown']:
+        print()
+        print("UNKNOWN (not in public shards)")
+        print("-" * 40)
+        for v in results['unknown']:
+            print(f"  {v['name']}")
+            if v.get('suggestions'):
+                print(f"    closest: {', '.join(v['suggestions'])}")
+
+    if results['whitelisted']:
+        print()
+        print("WHITELISTED (skipped)")
+        print("-" * 40)
+        for v in results['whitelisted']:
+            print(f"  {v['name']}")
 
     if results['param_issues']:
         print()
