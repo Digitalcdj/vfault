@@ -53,6 +53,8 @@ DB_PATH = os.environ.get('VFAULT_DB_PATH',
 # In-memory hot cache: subject -> list of triples (each tagged with domain)
 HOT_CACHE = {}
 LOADED_SHARDS = []
+METHOD_INDEX = {}  # Reverse index: method_name -> [ClassName.method_name, ...]
+PREFIX_INDEX = {}  # Prefix buckets: prefix -> [subjects...]
 
 # Shard access control
 FREE_SHARDS = {'wordpress'}
@@ -184,6 +186,40 @@ def load_all_shards():
         print(f"All shards loaded: {LOADED_SHARDS}")
         print(f"Hot cache: {len(HOT_CACHE)} subjects, "
               f"{sum(len(v) for v in HOT_CACHE.values())} triples")
+
+    # Build reverse index: method_name -> [ClassName.method_name, ...]
+    global METHOD_INDEX
+    METHOD_INDEX = {}
+    for subject in HOT_CACHE:
+        if '.' in subject:
+            method_part = subject.split('.', 1)[1]
+            if method_part not in METHOD_INDEX:
+                METHOD_INDEX[method_part] = []
+            METHOD_INDEX[method_part].append(subject)
+    print(f"Method index: {len(METHOD_INDEX)} method names")
+
+    # Build prefix index for fast fuzzy candidate lookup
+    global PREFIX_INDEX
+    PREFIX_INDEX = {}
+    for subject in HOT_CACHE:
+        if '_' in subject:
+            parts = subject.split('_')
+            # Index by 1, 2, and 3 segment prefixes
+            p1 = parts[0] + '_'
+            PREFIX_INDEX.setdefault(p1, []).append(subject)
+            if len(parts) >= 3:
+                p2 = parts[0] + '_' + parts[1] + '_'
+                PREFIX_INDEX.setdefault(p2, []).append(subject)
+            if len(parts) >= 4:
+                p3 = parts[0] + '_' + parts[1] + '_' + parts[2] + '_'
+                PREFIX_INDEX.setdefault(p3, []).append(subject)
+        elif '.' in subject:
+            module_prefix = subject.rsplit('.', 1)[0] + '.'
+            PREFIX_INDEX.setdefault(module_prefix, []).append(subject)
+        if len(subject) >= 3:
+            short = subject[:3].lower()
+            PREFIX_INDEX.setdefault('_short_' + short, []).append(subject)
+    print(f"Prefix index: {len(PREFIX_INDEX)} buckets")
 
 
 def get_all_subjects(allowed_shards=None):
@@ -853,31 +889,74 @@ def verify_claim(name, allowed_shards=None, whitelist=None):
             return result
 
     # Not found — hallucination or unknown
+    # Check METHOD_INDEX first: if this bare name is a class method,
+    # provide class-qualified suggestions instantly (skip fuzzy search)
+    if name in METHOD_INDEX:
+        owners = []
+        for subject_key in METHOD_INDEX[name]:
+            for t in HOT_CACHE[subject_key]:
+                if t['predicate'] == 'class':
+                    owners.append(t['object'])
+                    break
+        class_suggestions = [f"{owner}.{name}" for owner in owners[:5]]
+        in_shard = is_shard_namespace(name)
+        result = {
+            'name': name,
+            'exists': False,
+            'status': 'not_found' if in_shard else 'unknown',
+            'message': (
+                f"Bare method name. Use with class: {', '.join(owners[:3])}."
+                if owners else f"NOT FOUND. This may be a hallucination."
+            ),
+            'suggestions': class_suggestions,
+        }
+        return result
+
     # Multi-tier suggestion system:
     # 1. Fuzzy match (close spelling)
     # 2. Namespace/module match (same module, different function)
     # 3. Cross-language equivalents (json.stringify -> json.dumps)
 
-    all_subjects = get_all_subjects(allowed_shards)
     suggestions = []
 
-    # Tier 1: Fuzzy match (close spelling — typos, plurals, underscores)
-    close = get_close_matches(name, all_subjects, n=5, cutoff=0.5)
+    # Tier 1: Fuzzy match using pre-built prefix index (O(1) lookup)
+    candidates = []
+    if '.' in name:
+        module_prefix = name.rsplit('.', 1)[0] + '.'
+        candidates = PREFIX_INDEX.get(module_prefix, [])
+    elif '_' in name:
+        parts = name.split('_')
+        if len(parts) >= 4:
+            p3 = parts[0] + '_' + parts[1] + '_' + parts[2] + '_'
+            candidates = PREFIX_INDEX.get(p3, [])
+        if len(candidates) < 5 and len(parts) >= 3:
+            p2 = parts[0] + '_' + parts[1] + '_'
+            candidates = PREFIX_INDEX.get(p2, [])
+        if len(candidates) < 5:
+            p1 = parts[0] + '_'
+            candidates = PREFIX_INDEX.get(p1, [])
+    else:
+        if len(name) >= 3:
+            short = '_short_' + name[:3].lower()
+            candidates = PREFIX_INDEX.get(short, [])
+
+    # Hard cap to prevent slow difflib scans
+    if len(candidates) > 100:
+        candidates = candidates[:100]
+
+    close = get_close_matches(name, candidates, n=3, cutoff=0.6) if candidates else []
     suggestions.extend(close)
 
     # Tier 2: Namespace match — same module/prefix, list available functions
     if '.' in name:
-        # Dotted name: get the module part and find siblings
         parts = name.rsplit('.', 1)
         module_prefix = parts[0] + '.'
         func_part = parts[1].lower()
-        siblings = [s for s in all_subjects
-                    if s.startswith(module_prefix) and s not in suggestions]
-        # Rank siblings by relevance to the function name
+        siblings = [s for s in PREFIX_INDEX.get(module_prefix, [])
+                    if s not in suggestions]
         scored = []
         for sib in siblings:
             sib_func = sib.rsplit('.', 1)[-1].lower()
-            # Simple relevance: shared characters / length
             common = sum(1 for c in func_part if c in sib_func)
             score = common / max(len(func_part), len(sib_func), 1)
             scored.append((score, sib))
@@ -886,11 +965,10 @@ def verify_claim(name, allowed_shards=None, whitelist=None):
             if sib not in suggestions:
                 suggestions.append(sib)
     elif '_' in name:
-        # Underscore name (WordPress style): match prefix
         prefix = name.split('_')[0] + '_'
-        siblings = [s for s in all_subjects
-                    if s.startswith(prefix) and s not in suggestions]
-        close_siblings = get_close_matches(name, siblings, n=3, cutoff=0.6)
+        siblings = [s for s in PREFIX_INDEX.get(prefix, [])
+                    if s not in suggestions]
+        close_siblings = get_close_matches(name, siblings[:100], n=3, cutoff=0.6)
         for s in close_siblings:
             if s not in suggestions:
                 suggestions.append(s)
@@ -1270,19 +1348,27 @@ CONTEXT_RULES = {
 }
 
 
+# Pre-compile all context rule regexes at import time
+for _func, _rules in CONTEXT_RULES.items():
+    for _rule in _rules:
+        if 'context_forbidden' in _rule:
+            _rule['_compiled'] = re.compile(_rule['context_forbidden'], re.DOTALL)
+            _rule['_type'] = 'forbidden'
+        elif 'context' in _rule:
+            _rule['_compiled'] = re.compile(_rule['context'], re.DOTALL)
+            _rule['_type'] = 'required'
+
+
 def check_context_rules(text, verified_names, disable_rules=None):
     """Check usage context rules for verified functions found in the text.
-    Two rule types:
-      - 'context': pattern that SHOULD be present (missing = issue)
-      - 'context_forbidden': pattern that SHOULD NOT be present (found = issue)
-    disable_rules: optional list of function names to skip.
+    Uses pre-compiled regexes for performance.
+    disable_rules: optional list of function names or rule IDs to skip.
     Returns list of context issues."""
     issues = []
     skip_funcs = set()
     skip_ids = set()
     if disable_rules:
         for item in disable_rules:
-            # Could be a function name or a rule ID
             if item in CONTEXT_RULES:
                 skip_funcs.add(item)
             else:
@@ -1292,16 +1378,14 @@ def check_context_rules(text, verified_names, disable_rules=None):
             continue
         if func_name in skip_funcs:
             continue
-        # Confirm the function actually appears in the text
         if func_name not in text:
             continue
         for rule in CONTEXT_RULES[func_name]:
             if rule['id'] in skip_ids:
                 continue
-            if 'context_forbidden' in rule:
-                # Pattern should NOT be present
-                pattern = re.compile(rule['context_forbidden'], re.DOTALL)
-                if pattern.search(text):
+            compiled = rule['_compiled']
+            if rule['_type'] == 'forbidden':
+                if compiled.search(text):
                     issues.append({
                         'id': rule['id'],
                         'function': func_name,
@@ -1309,10 +1393,8 @@ def check_context_rules(text, verified_names, disable_rules=None):
                         'severity': rule['severity'],
                         'message': rule['missing_message'],
                     })
-            elif 'context' in rule:
-                # Pattern SHOULD be present
-                pattern = re.compile(rule['context'], re.DOTALL)
-                if not pattern.search(text):
+            else:
+                if not compiled.search(text):
                     issues.append({
                         'id': rule['id'],
                         'function': func_name,
@@ -1394,20 +1476,17 @@ def verify_text(text, allowed_shards=None, whitelist=None, disable_rules=None):
             # Correct pairing, nothing to flag
             continue
 
-        # Method not found under stated class. Search for it under other classes.
-        actual_owners = []
-        search_suffix = f".{method_name}"
-        for subject in HOT_CACHE:
-            if subject.endswith(search_suffix):
-                # Get the class predicate to confirm
-                for t in HOT_CACHE[subject]:
-                    if t['predicate'] == 'class':
-                        actual_owners.append(t['object'])
-                        break
-
-        if not actual_owners:
+        # Method not found under stated class. Use reverse index for O(1) lookup.
+        if method_name not in METHOD_INDEX:
             # Method doesn't exist under any class, skip (main pass handles it)
             continue
+
+        actual_owners = []
+        for subject_key in METHOD_INDEX[method_name]:
+            for t in HOT_CACHE[subject_key]:
+                if t['predicate'] == 'class':
+                    actual_owners.append(t['object'])
+                    break
 
         # Filter by allowed shards
         if allowed_shards:
