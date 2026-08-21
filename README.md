@@ -158,7 +158,7 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ Class/method pairing validation in /verify (second pass)
 - ✅ Unknown vs not_found separation (private code awareness)
 - ✅ Whitelist parameter for /verify (skip private namespaces)
-- ✅ Usage context rules (15 rules for WordPress/WooCommerce patterns)
+- ✅ Usage context rules (30 rules across WordPress, WooCommerce, React, Python, JavaScript, and Laravel)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
 - ⬜ FastAPI shard
