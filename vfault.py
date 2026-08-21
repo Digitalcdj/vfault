@@ -1251,15 +1251,19 @@ CONTEXT_RULES = {
 }
 
 
-def check_context_rules(text, verified_names):
+def check_context_rules(text, verified_names, disable_rules=None):
     """Check usage context rules for verified functions found in the text.
     Two rule types:
       - 'context': pattern that SHOULD be present (missing = issue)
       - 'context_forbidden': pattern that SHOULD NOT be present (found = issue)
+    disable_rules: optional list of function names to skip.
     Returns list of context issues."""
     issues = []
+    skip = set(disable_rules) if disable_rules else set()
     for func_name in verified_names:
         if func_name not in CONTEXT_RULES:
+            continue
+        if func_name in skip:
             continue
         # Confirm the function actually appears in the text
         if func_name not in text:
@@ -1288,9 +1292,10 @@ def check_context_rules(text, verified_names):
     return issues
 
 
-def verify_text(text, allowed_shards=None, whitelist=None):
+def verify_text(text, allowed_shards=None, whitelist=None, disable_rules=None):
     """Extract and verify all claims in a block of text.
-    whitelist: optional list of namespace prefixes to skip (private code)."""
+    whitelist: optional list of namespace prefixes to skip (private code).
+    disable_rules: optional list of function names to skip context checking for."""
     claims = extract_claims(text)
 
     results = {
@@ -1405,7 +1410,7 @@ def verify_text(text, allowed_shards=None, whitelist=None):
         {v['name'] for v in results['verified']} |
         {v['name'] for v in results['deprecated']}
     )
-    results['context_issues'] = check_context_rules(text, all_verified)
+    results['context_issues'] = check_context_rules(text, all_verified, disable_rules)
 
     results['summary'] = {
         'total_claims': len(claims),
@@ -1528,6 +1533,7 @@ def create_app():
     class VerifyRequest(BaseModel):
         text: str = Field(..., max_length=MAX_INPUT_LENGTH)
         whitelist: Optional[list] = Field(None, max_length=50)
+        disable_rules: Optional[list] = Field(None, max_length=50)
 
     class ParamCompareRequest(BaseModel):
         function: str = Field(..., max_length=200)
@@ -1560,7 +1566,8 @@ def create_app():
                 status_code=413,
                 detail=f"Input too large. Max {MAX_INPUT_LENGTH} characters."
             )
-        result = verify_text(req.text, whitelist=req.whitelist)
+        result = verify_text(req.text, whitelist=req.whitelist,
+                             disable_rules=req.disable_rules)
         result['plan'] = auth['plan']
         result['daily_remaining'] = auth['daily_remaining']
         return result
@@ -1617,6 +1624,67 @@ def create_app():
             "hooks": hooks,
             "class_methods": methods,
             "database": DB_PATH
+        }
+
+    @app.get("/rules")
+    def rules():
+        """List all active context rules with severity and descriptions."""
+        # Group rules by ecosystem
+        ecosystems = {
+            'wordpress': [],
+            'woocommerce': [],
+            'react': [],
+            'python': [],
+            'javascript': [],
+            'laravel': [],
+        }
+
+        # Map function names to ecosystems
+        wp_funcs = {
+            'wp_enqueue_script', 'wp_enqueue_style', 'admin_enqueue_scripts',
+            'register_post_type', 'register_taxonomy', 'add_meta_box',
+            'register_widget', 'register_sidebar', 'add_shortcode',
+            'wp_redirect', 'wp_safe_redirect', 'update_option',
+            'delete_option', 'wp_localize_script',
+        }
+        wc_funcs = {'wc_get_product', 'wc_get_order'}
+        react_funcs = {'useEffect', 'dangerouslySetInnerHTML'}
+        python_funcs = {
+            'os.system', 'subprocess.run', 'subprocess.call',
+            'subprocess.Popen', 'eval', 'pickle.loads', 'pickle.load',
+        }
+        js_funcs = {'JSON.parse'}
+        laravel_funcs = {'env', 'redirect', 'bcrypt', 'decrypt'}
+
+        for func_name, rule_list in CONTEXT_RULES.items():
+            for rule in rule_list:
+                entry = {
+                    'function': func_name,
+                    'severity': rule['severity'],
+                    'rule_type': 'forbidden' if 'context_forbidden' in rule else 'required',
+                    'message': rule['missing_message'],
+                }
+                if func_name in wp_funcs:
+                    ecosystems['wordpress'].append(entry)
+                elif func_name in wc_funcs:
+                    ecosystems['woocommerce'].append(entry)
+                elif func_name in react_funcs:
+                    ecosystems['react'].append(entry)
+                elif func_name in python_funcs:
+                    ecosystems['python'].append(entry)
+                elif func_name in js_funcs:
+                    ecosystems['javascript'].append(entry)
+                elif func_name in laravel_funcs:
+                    ecosystems['laravel'].append(entry)
+
+        return {
+            'total_rules': sum(len(v) for v in CONTEXT_RULES.values()),
+            'ecosystems': ecosystems,
+            'usage': (
+                'Rules are checked automatically on /verify. '
+                'To disable specific rules, pass disable_rules: '
+                '["func_name"] in your /verify request.'
+            ),
         }
 
     # ── Usage endpoint (check your own limits) ────────────────────
