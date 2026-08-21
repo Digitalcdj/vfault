@@ -1153,28 +1153,138 @@ CONTEXT_RULES = {
         'missing_message': "wc_get_product can return false. Check the return value before using it.",
         'severity': 'warning',
     }],
+    # WooCommerce: wc_get_order should check for false return
+    'wc_get_order': [{
+        'context': r"(if\s*\(\s*!?\s*\$|false|!==\s*false|\?\?)",
+        'missing_message': "wc_get_order can return false. Check the return value before using it.",
+        'severity': 'warning',
+    }],
+
+    # ── React / Next.js ──────────────────────────────────────────
+    # useEffect with async directly (common AI mistake)
+    'useEffect': [{
+        'context_forbidden': r"useEffect\s*\(\s*async",
+        'missing_message': "useEffect callback must not be async directly. Define an async function inside the effect and call it.",
+        'severity': 'error',
+    }],
+    # dangerouslySetInnerHTML should have sanitisation
+    'dangerouslySetInnerHTML': [{
+        'context': r"(sanitize|DOMPurify|purify|escape|xss)",
+        'missing_message': "dangerouslySetInnerHTML should use a sanitiser (e.g. DOMPurify) to prevent XSS.",
+        'severity': 'error',
+    }],
+
+    # ── Python ───────────────────────────────────────────────────
+    # os.system is a security risk, use subprocess
+    'os.system': [{
+        'context_forbidden': r"os\.system\s*\(",
+        'missing_message': "os.system is a security risk. Use subprocess.run with a list of arguments instead.",
+        'severity': 'warning',
+    }],
+    # subprocess with shell=True
+    'subprocess.run': [{
+        'context_forbidden': r"subprocess\.run\s*\([^)]*shell\s*=\s*True",
+        'missing_message': "subprocess.run with shell=True is a security risk. Use a list of arguments instead.",
+        'severity': 'warning',
+    }],
+    'subprocess.call': [{
+        'context_forbidden': r"subprocess\.call\s*\([^)]*shell\s*=\s*True",
+        'missing_message': "subprocess.call with shell=True is a security risk. Use a list of arguments instead.",
+        'severity': 'warning',
+    }],
+    'subprocess.Popen': [{
+        'context_forbidden': r"subprocess\.Popen\s*\([^)]*shell\s*=\s*True",
+        'missing_message': "subprocess.Popen with shell=True is a security risk. Use a list of arguments instead.",
+        'severity': 'warning',
+    }],
+    # eval is dangerous
+    'eval': [{
+        'context_forbidden': r"\beval\s*\(",
+        'missing_message': "eval() executes arbitrary code and is a security risk. Use ast.literal_eval() for safe evaluation of literals.",
+        'severity': 'error',
+    }],
+    # pickle from untrusted data
+    'pickle.loads': [{
+        'context': r"(trusted|safe|verified|internal)",
+        'missing_message': "pickle.loads can execute arbitrary code. Never unpickle data from untrusted sources.",
+        'severity': 'error',
+    }],
+    'pickle.load': [{
+        'context': r"(trusted|safe|verified|internal)",
+        'missing_message': "pickle.load can execute arbitrary code. Never unpickle data from untrusted sources.",
+        'severity': 'error',
+    }],
+    # ── JavaScript ───────────────────────────────────────────────
+    # JSON.parse should have try/catch
+    'JSON.parse': [{
+        'context': r"(try\s*\{|catch\s*\(|\.catch\s*\(|\?\s*\.)",
+        'missing_message': "JSON.parse throws on invalid input. Wrap in try/catch or validate the input first.",
+        'severity': 'warning',
+    }],
+
+    # ── Laravel ──────────────────────────────────────────────────
+    # env() should not be used outside config files
+    'env': [{
+        'context': r"(config\(|config/|\.env|Config::)",
+        'missing_message': "env() should only be called in config files. Use config() everywhere else — env() returns null when config is cached.",
+        'severity': 'error',
+    }],
+    # redirect should be returned
+    'redirect': [{
+        'context': r"return\s+(redirect|Redirect)",
+        'missing_message': "redirect() must be returned from the controller method to take effect.",
+        'severity': 'error',
+    }],
+    # bcrypt should not be used directly for password hashing in Laravel
+    'bcrypt': [{
+        'context': r"(Hash::make|Hash::check|password_hash)",
+        'missing_message': "Use Hash::make() instead of bcrypt() directly — it respects the hashing driver configured in config/hashing.php.",
+        'severity': 'warning',
+    }],
+    # decrypt should have try/catch for DecryptException
+    'decrypt': [{
+        'context': r"(try\s*\{|catch\s*\(|DecryptException)",
+        'missing_message': "decrypt() throws DecryptException on invalid data. Wrap in try/catch.",
+        'severity': 'warning',
+    }],
+
 }
 
 
 def check_context_rules(text, verified_names):
     """Check usage context rules for verified functions found in the text.
+    Two rule types:
+      - 'context': pattern that SHOULD be present (missing = issue)
+      - 'context_forbidden': pattern that SHOULD NOT be present (found = issue)
     Returns list of context issues."""
     issues = []
     for func_name in verified_names:
         if func_name not in CONTEXT_RULES:
             continue
-        # Confirm the function actually appears in the text (not just extracted as a claim)
+        # Confirm the function actually appears in the text
         if func_name not in text:
             continue
         for rule in CONTEXT_RULES[func_name]:
-            pattern = re.compile(rule['context'], re.DOTALL)
-            if not pattern.search(text):
-                issues.append({
-                    'function': func_name,
-                    'status': 'context_issue',
-                    'severity': rule['severity'],
-                    'message': rule['missing_message'],
-                })
+            if 'context_forbidden' in rule:
+                # Pattern should NOT be present
+                pattern = re.compile(rule['context_forbidden'], re.DOTALL)
+                if pattern.search(text):
+                    issues.append({
+                        'function': func_name,
+                        'status': 'context_issue',
+                        'severity': rule['severity'],
+                        'message': rule['missing_message'],
+                    })
+            elif 'context' in rule:
+                # Pattern SHOULD be present
+                pattern = re.compile(rule['context'], re.DOTALL)
+                if not pattern.search(text):
+                    issues.append({
+                        'function': func_name,
+                        'status': 'context_issue',
+                        'severity': rule['severity'],
+                        'message': rule['missing_message'],
+                    })
     return issues
 
 
