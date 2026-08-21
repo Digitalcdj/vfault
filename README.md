@@ -169,8 +169,7 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ Usage context rules (30 rules across WordPress, WooCommerce, React, Python, JavaScript, and Laravel)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
-- ⬜ FastAPI shard
-- ⬜ Tailwind CSS shard
+- ⬜ SQLModel/SQLAlchemy shard
 - ⬜ WordPress 7.1 shard rebuild
 - ⬜ CI/CD GitHub Action
 
