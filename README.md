@@ -124,6 +124,14 @@ curl https://exceedweb.pythonanywhere.com/usage
 
 # Health check
 curl https://exceedweb.pythonanywhere.com/health
+
+# List all context rules
+curl https://exceedweb.pythonanywhere.com/rules
+
+# Verify with rules disabled
+curl -X POST https://exceedweb.pythonanywhere.com/verify \
+  -H "Content-Type: application/json" \
+  -d '{"text": "eval(user_input)", "disable_rules": ["eval"]}'
 ```
 
 ## Pricing
