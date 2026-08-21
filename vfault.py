@@ -1053,6 +1053,131 @@ def compare_params(func_name, stated_params_text, allowed_shards=None):
     return result
 
 
+# ---------------------------------------------------------------------------
+# Context Rules Engine
+# ---------------------------------------------------------------------------
+# Rules check HOW a function is used, not just IF it exists.
+# Each rule: function_name -> list of checks.
+# A check has: 'context' (regex that should be present), 'message' (warning),
+# and 'severity' ('warning' or 'error').
+#
+# This is a heuristic first-line check on snippets/text. It won't catch
+# everything (multi-file, variable scoping) but flags the most common
+# AI-generated context mistakes.
+
+CONTEXT_RULES = {
+    # WordPress: enqueue functions must be hooked to wp_enqueue_scripts
+    'wp_enqueue_script': [{
+        'context': r"add_action\s*\(\s*['\"]wp_enqueue_scripts['\"]",
+        'missing_message': "wp_enqueue_script should be called inside an add_action('wp_enqueue_scripts', ...) callback.",
+        'severity': 'warning',
+    }],
+    'wp_enqueue_style': [{
+        'context': r"add_action\s*\(\s*['\"]wp_enqueue_scripts['\"]",
+        'missing_message': "wp_enqueue_style should be called inside an add_action('wp_enqueue_scripts', ...) callback.",
+        'severity': 'warning',
+    }],
+    # Admin enqueue should use admin_enqueue_scripts
+    'admin_enqueue_scripts': [{
+        'context': r"add_action\s*\(\s*['\"]admin_enqueue_scripts['\"]",
+        'missing_message': "Admin scripts should be enqueued inside add_action('admin_enqueue_scripts', ...).",
+        'severity': 'warning',
+    }],
+    # register_post_type must be in init hook
+    'register_post_type': [{
+        'context': r"add_action\s*\(\s*['\"]init['\"]",
+        'missing_message': "register_post_type should be called inside an add_action('init', ...) callback.",
+        'severity': 'warning',
+    }],
+    # register_taxonomy must be in init hook
+    'register_taxonomy': [{
+        'context': r"add_action\s*\(\s*['\"]init['\"]",
+        'missing_message': "register_taxonomy should be called inside an add_action('init', ...) callback.",
+        'severity': 'warning',
+    }],
+    # add_meta_box must be in add_meta_boxes hook
+    'add_meta_box': [{
+        'context': r"add_action\s*\(\s*['\"]add_meta_boxes['\"]",
+        'missing_message': "add_meta_box should be called inside an add_action('add_meta_boxes', ...) callback.",
+        'severity': 'warning',
+    }],
+    # register_widget must be in widgets_init hook
+    'register_widget': [{
+        'context': r"add_action\s*\(\s*['\"]widgets_init['\"]",
+        'missing_message': "register_widget should be called inside an add_action('widgets_init', ...) callback.",
+        'severity': 'warning',
+    }],
+    # register_sidebar must be in widgets_init hook
+    'register_sidebar': [{
+        'context': r"add_action\s*\(\s*['\"]widgets_init['\"]",
+        'missing_message': "register_sidebar should be called inside an add_action('widgets_init', ...) callback.",
+        'severity': 'warning',
+    }],
+    # add_shortcode should be in init
+    'add_shortcode': [{
+        'context': r"add_action\s*\(\s*['\"]init['\"]",
+        'missing_message': "add_shortcode should be called inside an add_action('init', ...) callback.",
+        'severity': 'warning',
+    }],
+    # wp_redirect / wp_safe_redirect must be followed by exit or die
+    'wp_redirect': [{
+        'context': r"wp_redirect\s*\(.*?\)\s*;\s*(exit|die)",
+        'missing_message': "wp_redirect must be followed by exit; or die; to prevent further execution.",
+        'severity': 'error',
+    }],
+    'wp_safe_redirect': [{
+        'context': r"wp_safe_redirect\s*\(.*?\)\s*;\s*(exit|die)",
+        'missing_message': "wp_safe_redirect must be followed by exit; or die; to prevent further execution.",
+        'severity': 'error',
+    }],
+    # wp_nonce checks should happen before processing form data
+    'update_option': [{
+        'context': r"(wp_verify_nonce|check_admin_referer|check_ajax_referer)",
+        'missing_message': "update_option should be protected by a nonce check (wp_verify_nonce, check_admin_referer, or check_ajax_referer).",
+        'severity': 'warning',
+    }],
+    'delete_option': [{
+        'context': r"(wp_verify_nonce|check_admin_referer|check_ajax_referer)",
+        'missing_message': "delete_option should be protected by a nonce check.",
+        'severity': 'warning',
+    }],
+    # wp_localize_script should appear after wp_enqueue_script
+    'wp_localize_script': [{
+        'context': r"wp_enqueue_script",
+        'missing_message': "wp_localize_script requires a script to be registered or enqueued first via wp_enqueue_script.",
+        'severity': 'warning',
+    }],
+    # WooCommerce: wc_get_product should check for false return
+    'wc_get_product': [{
+        'context': r"(if\s*\(\s*!?\s*\$|false|!==\s*false|\?\?)",
+        'missing_message': "wc_get_product can return false. Check the return value before using it.",
+        'severity': 'warning',
+    }],
+}
+
+
+def check_context_rules(text, verified_names):
+    """Check usage context rules for verified functions found in the text.
+    Returns list of context issues."""
+    issues = []
+    for func_name in verified_names:
+        if func_name not in CONTEXT_RULES:
+            continue
+        # Confirm the function actually appears in the text (not just extracted as a claim)
+        if func_name not in text:
+            continue
+        for rule in CONTEXT_RULES[func_name]:
+            pattern = re.compile(rule['context'], re.DOTALL)
+            if not pattern.search(text):
+                issues.append({
+                    'function': func_name,
+                    'status': 'context_issue',
+                    'severity': rule['severity'],
+                    'message': rule['missing_message'],
+                })
+    return issues
+
+
 def verify_text(text, allowed_shards=None, whitelist=None):
     """Extract and verify all claims in a block of text.
     whitelist: optional list of namespace prefixes to skip (private code)."""
@@ -1070,6 +1195,7 @@ def verify_text(text, allowed_shards=None, whitelist=None):
         'third_party': [],
         'param_issues': [],
         'class_mismatches': [],
+        'context_issues': [],
         'summary': {}
     }
 
@@ -1162,6 +1288,15 @@ def verify_text(text, allowed_shards=None, whitelist=None):
             ),
         })
 
+    # ── Third pass: usage context rules ───────────────────────────
+    # Check if verified functions are used in the correct context
+    # (e.g. wp_enqueue_script inside add_action callback).
+    all_verified = (
+        {v['name'] for v in results['verified']} |
+        {v['name'] for v in results['deprecated']}
+    )
+    results['context_issues'] = check_context_rules(text, all_verified)
+
     results['summary'] = {
         'total_claims': len(claims),
         'verified': len(results['verified']),
@@ -1173,6 +1308,7 @@ def verify_text(text, allowed_shards=None, whitelist=None):
         'third_party': len(results['third_party']),
         'param_issues': len(results['param_issues']),
         'class_mismatches': len(results['class_mismatches']),
+        'context_issues': len(results['context_issues']),
         'hallucination_rate': (
             f"{len(results['not_found']) / len(claims) * 100:.1f}%"
             if claims else "0%"
@@ -1511,6 +1647,7 @@ def cli_check(text):
     print(f"Whitelisted:        {results['summary']['whitelisted']}")
     print(f"Param issues:       {results['summary']['param_issues']}")
     print(f"Class mismatches:   {results['summary']['class_mismatches']}")
+    print(f"Context issues:     {results['summary']['context_issues']}")
     print(f"Hallucination rate: {results['summary']['hallucination_rate']}")
 
     if results['verified']:
@@ -1570,6 +1707,14 @@ def cli_check(text):
         print("-" * 40)
         for c in results['class_mismatches']:
             print(f"  {c['message']}")
+
+    if results['context_issues']:
+        print()
+        print("CONTEXT ISSUES")
+        print("-" * 40)
+        for c in results['context_issues']:
+            severity = "ERROR" if c['severity'] == 'error' else "WARNING"
+            print(f"  [{severity}] {c['function']}: {c['message']}")
 
     print()
     return results
