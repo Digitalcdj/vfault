@@ -1,0 +1,52 @@
+name: VFault Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vfault.py'
+      - 'tests/**'
+      - 'shards/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'vfault.py'
+      - 'tests/**'
+      - 'shards/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install pytest
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        env:
+          VFAULT_SHARDS_DIR: shards
+        run: |
+          pytest tests/test_vfault.py -v --tb=short
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## VFault Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ ${{ job.status }} == "success" ]; then
+            echo "All tests passed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Some tests failed. Check the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
