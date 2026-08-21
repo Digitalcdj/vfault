@@ -77,6 +77,8 @@ Class mismatch: WC_Order::get_price → belongs to WC_Product
 Unknown:        useShoppingCart — custom hook, not flagged as hallucination
 Unknown:        usePaymentFlow — outside shard scope, may be private code
 Whitelisted:    get_my_custom_data — skipped (matches whitelist prefix)
+Context:        wp_enqueue_script — should be inside add_action('wp_enqueue_scripts') callback
+Context:        wp_redirect — must be followed by exit; or die;
 Verified:       wp_enqueue_script (since 2.1.0) — WordPress
 Verified:       useState (since 16.8.0) — React
 Verified:       wc_get_product (since 2.2.0) — WooCommerce
@@ -156,6 +158,7 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ Class/method pairing validation in /verify (second pass)
 - ✅ Unknown vs not_found separation (private code awareness)
 - ✅ Whitelist parameter for /verify (skip private namespaces)
+- ✅ Usage context rules (15 rules for WordPress/WooCommerce patterns)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
 - ⬜ FastAPI shard
