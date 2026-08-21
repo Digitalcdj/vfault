@@ -1068,181 +1068,200 @@ def compare_params(func_name, stated_params_text, allowed_shards=None):
 CONTEXT_RULES = {
     # WordPress: enqueue functions must be hooked to wp_enqueue_scripts
     'wp_enqueue_script': [{
+        'id': 'wp_enqueue_hook',
         'context': r"add_action\s*\(\s*['\"]wp_enqueue_scripts['\"]",
         'missing_message': "wp_enqueue_script should be called inside an add_action('wp_enqueue_scripts', ...) callback.",
         'severity': 'warning',
     }],
     'wp_enqueue_style': [{
+        'id': 'wp_style_hook',
         'context': r"add_action\s*\(\s*['\"]wp_enqueue_scripts['\"]",
         'missing_message': "wp_enqueue_style should be called inside an add_action('wp_enqueue_scripts', ...) callback.",
         'severity': 'warning',
     }],
     # Admin enqueue should use admin_enqueue_scripts
     'admin_enqueue_scripts': [{
+        'id': 'admin_enqueue_hook',
         'context': r"add_action\s*\(\s*['\"]admin_enqueue_scripts['\"]",
         'missing_message': "Admin scripts should be enqueued inside add_action('admin_enqueue_scripts', ...).",
         'severity': 'warning',
     }],
     # register_post_type must be in init hook
     'register_post_type': [{
+        'id': 'cpt_init_hook',
         'context': r"add_action\s*\(\s*['\"]init['\"]",
         'missing_message': "register_post_type should be called inside an add_action('init', ...) callback.",
         'severity': 'warning',
     }],
     # register_taxonomy must be in init hook
     'register_taxonomy': [{
+        'id': 'taxonomy_init_hook',
         'context': r"add_action\s*\(\s*['\"]init['\"]",
         'missing_message': "register_taxonomy should be called inside an add_action('init', ...) callback.",
         'severity': 'warning',
     }],
     # add_meta_box must be in add_meta_boxes hook
     'add_meta_box': [{
+        'id': 'metabox_hook',
         'context': r"add_action\s*\(\s*['\"]add_meta_boxes['\"]",
         'missing_message': "add_meta_box should be called inside an add_action('add_meta_boxes', ...) callback.",
         'severity': 'warning',
     }],
     # register_widget must be in widgets_init hook
     'register_widget': [{
+        'id': 'widget_init_hook',
         'context': r"add_action\s*\(\s*['\"]widgets_init['\"]",
         'missing_message': "register_widget should be called inside an add_action('widgets_init', ...) callback.",
         'severity': 'warning',
     }],
     # register_sidebar must be in widgets_init hook
     'register_sidebar': [{
+        'id': 'sidebar_init_hook',
         'context': r"add_action\s*\(\s*['\"]widgets_init['\"]",
         'missing_message': "register_sidebar should be called inside an add_action('widgets_init', ...) callback.",
         'severity': 'warning',
     }],
     # add_shortcode should be in init
     'add_shortcode': [{
+        'id': 'shortcode_init_hook',
         'context': r"add_action\s*\(\s*['\"]init['\"]",
         'missing_message': "add_shortcode should be called inside an add_action('init', ...) callback.",
         'severity': 'warning',
     }],
     # wp_redirect / wp_safe_redirect must be followed by exit or die
     'wp_redirect': [{
+        'id': 'redirect_exit',
         'context': r"wp_redirect\s*\(.*?\)\s*;\s*(exit|die)",
         'missing_message': "wp_redirect must be followed by exit; or die; to prevent further execution.",
         'severity': 'error',
     }],
     'wp_safe_redirect': [{
+        'id': 'safe_redirect_exit',
         'context': r"wp_safe_redirect\s*\(.*?\)\s*;\s*(exit|die)",
         'missing_message': "wp_safe_redirect must be followed by exit; or die; to prevent further execution.",
         'severity': 'error',
     }],
     # wp_nonce checks should happen before processing form data
     'update_option': [{
+        'id': 'update_option_nonce',
         'context': r"(wp_verify_nonce|check_admin_referer|check_ajax_referer)",
         'missing_message': "update_option should be protected by a nonce check (wp_verify_nonce, check_admin_referer, or check_ajax_referer).",
         'severity': 'warning',
     }],
     'delete_option': [{
+        'id': 'delete_option_nonce',
         'context': r"(wp_verify_nonce|check_admin_referer|check_ajax_referer)",
         'missing_message': "delete_option should be protected by a nonce check.",
         'severity': 'warning',
     }],
     # wp_localize_script should appear after wp_enqueue_script
     'wp_localize_script': [{
+        'id': 'localize_after_enqueue',
         'context': r"wp_enqueue_script",
         'missing_message': "wp_localize_script requires a script to be registered or enqueued first via wp_enqueue_script.",
         'severity': 'warning',
     }],
     # WooCommerce: wc_get_product should check for false return
     'wc_get_product': [{
+        'id': 'wc_product_false_check',
         'context': r"(if\s*\(\s*!?\s*\$|false|!==\s*false|\?\?)",
         'missing_message': "wc_get_product can return false. Check the return value before using it.",
         'severity': 'warning',
     }],
     # WooCommerce: wc_get_order should check for false return
     'wc_get_order': [{
+        'id': 'wc_order_false_check',
         'context': r"(if\s*\(\s*!?\s*\$|false|!==\s*false|\?\?)",
         'missing_message': "wc_get_order can return false. Check the return value before using it.",
         'severity': 'warning',
     }],
 
     # ── React / Next.js ──────────────────────────────────────────
-    # useEffect with async directly (common AI mistake)
     'useEffect': [{
+        'id': 'async_use_effect',
         'context_forbidden': r"useEffect\s*\(\s*async",
         'missing_message': "useEffect callback must not be async directly. Define an async function inside the effect and call it.",
         'severity': 'error',
     }],
-    # dangerouslySetInnerHTML should have sanitisation
     'dangerouslySetInnerHTML': [{
+        'id': 'dangerouslysetinnerhtml_xss',
         'context': r"(sanitize|DOMPurify|purify|escape|xss)",
         'missing_message': "dangerouslySetInnerHTML should use a sanitiser (e.g. DOMPurify) to prevent XSS.",
         'severity': 'error',
     }],
 
     # ── Python ───────────────────────────────────────────────────
-    # os.system is a security risk, use subprocess
     'os.system': [{
+        'id': 'os_system_security',
         'context_forbidden': r"os\.system\s*\(",
         'missing_message': "os.system is a security risk. Use subprocess.run with a list of arguments instead.",
         'severity': 'warning',
     }],
-    # subprocess with shell=True
     'subprocess.run': [{
+        'id': 'subprocess_run_shell',
         'context_forbidden': r"subprocess\.run\s*\([^)]*shell\s*=\s*True",
         'missing_message': "subprocess.run with shell=True is a security risk. Use a list of arguments instead.",
         'severity': 'warning',
     }],
     'subprocess.call': [{
+        'id': 'subprocess_call_shell',
         'context_forbidden': r"subprocess\.call\s*\([^)]*shell\s*=\s*True",
         'missing_message': "subprocess.call with shell=True is a security risk. Use a list of arguments instead.",
         'severity': 'warning',
     }],
     'subprocess.Popen': [{
+        'id': 'subprocess_popen_shell',
         'context_forbidden': r"subprocess\.Popen\s*\([^)]*shell\s*=\s*True",
         'missing_message': "subprocess.Popen with shell=True is a security risk. Use a list of arguments instead.",
         'severity': 'warning',
     }],
-    # eval is dangerous
     'eval': [{
+        'id': 'eval_security',
         'context_forbidden': r"\beval\s*\(",
         'missing_message': "eval() executes arbitrary code and is a security risk. Use ast.literal_eval() for safe evaluation of literals.",
         'severity': 'error',
     }],
-    # pickle from untrusted data
     'pickle.loads': [{
+        'id': 'pickle_loads_untrusted',
         'context': r"(trusted|safe|verified|internal)",
         'missing_message': "pickle.loads can execute arbitrary code. Never unpickle data from untrusted sources.",
         'severity': 'error',
     }],
     'pickle.load': [{
+        'id': 'pickle_load_untrusted',
         'context': r"(trusted|safe|verified|internal)",
         'missing_message': "pickle.load can execute arbitrary code. Never unpickle data from untrusted sources.",
         'severity': 'error',
     }],
     # ── JavaScript ───────────────────────────────────────────────
-    # JSON.parse should have try/catch
     'JSON.parse': [{
+        'id': 'json_parse_try_catch',
         'context': r"(try\s*\{|catch\s*\(|\.catch\s*\(|\?\s*\.)",
         'missing_message': "JSON.parse throws on invalid input. Wrap in try/catch or validate the input first.",
         'severity': 'warning',
     }],
 
     # ── Laravel ──────────────────────────────────────────────────
-    # env() should not be used outside config files
     'env': [{
+        'id': 'env_outside_config',
         'context': r"(config\(|config/|\.env|Config::)",
         'missing_message': "env() should only be called in config files. Use config() everywhere else — env() returns null when config is cached.",
         'severity': 'error',
     }],
-    # redirect should be returned
     'redirect': [{
+        'id': 'redirect_return',
         'context': r"return\s+(redirect|Redirect)",
         'missing_message': "redirect() must be returned from the controller method to take effect.",
         'severity': 'error',
     }],
-    # bcrypt should not be used directly for password hashing in Laravel
     'bcrypt': [{
+        'id': 'bcrypt_use_hash',
         'context': r"(Hash::make|Hash::check|password_hash)",
         'missing_message': "Use Hash::make() instead of bcrypt() directly — it respects the hashing driver configured in config/hashing.php.",
         'severity': 'warning',
     }],
-    # decrypt should have try/catch for DecryptException
     'decrypt': [{
+        'id': 'decrypt_try_catch',
         'context': r"(try\s*\{|catch\s*\(|DecryptException)",
         'missing_message': "decrypt() throws DecryptException on invalid data. Wrap in try/catch.",
         'severity': 'warning',
@@ -1259,21 +1278,32 @@ def check_context_rules(text, verified_names, disable_rules=None):
     disable_rules: optional list of function names to skip.
     Returns list of context issues."""
     issues = []
-    skip = set(disable_rules) if disable_rules else set()
+    skip_funcs = set()
+    skip_ids = set()
+    if disable_rules:
+        for item in disable_rules:
+            # Could be a function name or a rule ID
+            if item in CONTEXT_RULES:
+                skip_funcs.add(item)
+            else:
+                skip_ids.add(item)
     for func_name in verified_names:
         if func_name not in CONTEXT_RULES:
             continue
-        if func_name in skip:
+        if func_name in skip_funcs:
             continue
         # Confirm the function actually appears in the text
         if func_name not in text:
             continue
         for rule in CONTEXT_RULES[func_name]:
+            if rule['id'] in skip_ids:
+                continue
             if 'context_forbidden' in rule:
                 # Pattern should NOT be present
                 pattern = re.compile(rule['context_forbidden'], re.DOTALL)
                 if pattern.search(text):
                     issues.append({
+                        'id': rule['id'],
                         'function': func_name,
                         'status': 'context_issue',
                         'severity': rule['severity'],
@@ -1284,6 +1314,7 @@ def check_context_rules(text, verified_names, disable_rules=None):
                 pattern = re.compile(rule['context'], re.DOTALL)
                 if not pattern.search(text):
                     issues.append({
+                        'id': rule['id'],
                         'function': func_name,
                         'status': 'context_issue',
                         'severity': rule['severity'],
@@ -1659,6 +1690,7 @@ def create_app():
         for func_name, rule_list in CONTEXT_RULES.items():
             for rule in rule_list:
                 entry = {
+                    'id': rule['id'],
                     'function': func_name,
                     'severity': rule['severity'],
                     'rule_type': 'forbidden' if 'context_forbidden' in rule else 'required',
