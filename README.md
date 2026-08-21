@@ -90,11 +90,14 @@ Verified:       json.dumps — Python
 |                           | VFault                           | Every competitor    |
 | ------------------------- | -------------------------------- | ------------------- |
 | Method                    | Deterministic source code lookup | AI judges AI        |
-| Server-side lookup        | <1ms                             | 152ms+              |
-| False positives           | 0%                               | 5–10%               |
-| Corrections               | Yes + closest match + source     | No — score only     |
+| Full pipeline speed       | <5ms (10 claims)                 | 152ms+              |
+| False positives           | 0%                               | 5-10%               |
+| Parameter checking        | Automatic                        | Manual config       |
+| Class/method pairing      | Automatic                        | With types only     |
+| Usage context rules       | 30 rules, 6 ecosystems           | Custom rules        |
+| Corrections               | Yes + closest match + source     | No                  |
 | Can verifier hallucinate? | Impossible                       | Yes                 |
-| Ecosystem isolation       | Yes (shards)                     | No                  |
+| Test suite                | 98 tests passing                 | Varies              |
 
 ## API
 
@@ -167,11 +170,26 @@ WordPress shard is free forever. All paid shards included with Pro and above.
 - ✅ Unknown vs not_found separation (private code awareness)
 - ✅ Whitelist parameter for /verify (skip private namespaces)
 - ✅ Usage context rules (30 rules across WordPress, WooCommerce, React, Python, JavaScript, and Laravel)
+- ✅ GET /rules endpoint + disable_rules configurability
+- ✅ 310x performance improvement (5.2ms full pipeline)
+- ✅ 98 automated tests (pytest, all 8 verification layers)
+- ✅ CI/CD GitHub Action (tests on push/PR)
 - ⬜ Lemon Squeezy payments live
 - ⬜ Django shard
 - ⬜ SQLModel/SQLAlchemy shard
 - ⬜ WordPress 7.1 shard rebuild
-- ⬜ CI/CD GitHub Action
+
+## Testing
+
+98 automated tests covering all 8 verification layers. Run against real shard data, no mocks.
+
+```
+VFAULT_SHARDS_DIR=shards pytest tests/test_vfault.py -v
+```
+
+Tests cover: existence checking, deprecation, parameter mismatch, class/method pairing, context rules (all 6 ecosystems), unknown vs not_found, whitelist, disable_rules, shard gating, third-party detection, edge cases, and performance (full deep check under 50ms).
+
+CI runs automatically on push and PR to main via GitHub Actions.
 
 ## Author
 
