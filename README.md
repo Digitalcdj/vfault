@@ -71,7 +71,7 @@ Deprecated:     get_currentuserinfo → wp_get_current_user() (WP 4.5)
 Deprecated:     ReactDOM.render → ReactDOM.createRoot (React 18)
 Deprecated:     getServerSideProps → Server Components (Next.js 13)
 Deprecated:     componentWillMount → componentDidMount (React 16.3)
-Param mismatch: wp_enqueue_script($in_footer) → $args (renamed in WP 6.3)
+Param mismatch: wp_enqueue_script($in_footer) → $in_footer was renamed to $args in WP 6.3.0
 Class mismatch: WC_Product::get_total → belongs to WC_Abstract_Order
 Class mismatch: WC_Order::get_price → belongs to WC_Product
 Unknown:        useShoppingCart — custom hook, not flagged as hallucination
