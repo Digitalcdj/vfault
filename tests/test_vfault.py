@@ -600,6 +600,45 @@ class TestCompareParams:
         r = vfault.compare_params('wp_nonexistent_func', '$x, $y')
         assert r is None
 
+    def test_history_on_renamed_param(self):
+        """$in_footer should show history explaining it was renamed to $args."""
+        r = vfault.compare_params(
+            'wp_enqueue_script', '$handle, $src, $deps, $ver, $in_footer'
+        )
+        assert 'param_history' in r
+        assert len(r['param_history']) == 1
+        h = r['param_history'][0]
+        assert h['was'] == '$in_footer'
+        assert h['became'] == '$args'
+        assert h['version'] == '6.3.0'
+
+    def test_no_history_on_correct_params(self):
+        r = vfault.compare_params(
+            'wp_enqueue_script', '$handle, $src, $deps, $ver, $args'
+        )
+        assert r['status'] == 'params_verified'
+        assert 'param_history' not in r
+
+    def test_history_message_includes_version(self):
+        r = vfault.compare_params(
+            'wp_enqueue_script', '$handle, $src, $deps, $ver, $in_footer'
+        )
+        assert '6.3.0' in r['message']
+
+    def test_get_terms_signature_change(self):
+        r = vfault.compare_params('get_terms', '$taxonomy, $args')
+        assert 'param_history' in r
+        h = r['param_history'][0]
+        assert h['version'] == '4.5.0'
+        assert h['type'] == 'signature_change'
+
+    def test_history_no_duplicates(self):
+        """Should only have one history entry for the in_footer/args rename."""
+        r = vfault.compare_params(
+            'wp_enqueue_script', '$handle, $src, $deps, $ver, $in_footer'
+        )
+        assert len(r['param_history']) == 1
+
 
 # ---------------------------------------------------------------------------
 # 16. CONTEXT_RULES Structure
