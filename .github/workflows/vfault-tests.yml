@@ -37,6 +37,7 @@ jobs:
       - name: Run test suite
         env:
           VFAULT_SHARDS_DIR: shards
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/test_vfault.py -v --tb=short
 
