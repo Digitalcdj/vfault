@@ -1050,9 +1050,113 @@ def verify_claim(name, allowed_shards=None, whitelist=None):
     return result
 
 
+# ---------------------------------------------------------------------------
+# Parameter Change History
+# ---------------------------------------------------------------------------
+# Tracks known parameter renames, signature changes, and additions across
+# WordPress versions. Used by compare_params to explain WHY a param mismatch
+# occurred, not just THAT it occurred.
+
+PARAM_HISTORY = {
+    'wp_enqueue_script': [
+        {
+            'old_param': 'in_footer', 'new_param': 'args', 'version': '6.3.0',
+            'type': 'renamed_overloaded',
+            'note': "Boolean $in_footer replaced by $args array. Old: true/false. New: array('in_footer' => true/false, 'strategy' => 'defer'|'async')",
+        },
+        {
+            'old_param': None, 'new_param': 'args.strategy', 'version': '6.3.0',
+            'type': 'added',
+            'note': "New key inside $args. Accepted values: 'defer' or 'async'.",
+        },
+        {
+            'old_param': None, 'new_param': 'args.fetchpriority', 'version': '6.9.0',
+            'type': 'added',
+            'note': "New key inside $args. Accepted values: 'high', 'low', or 'auto'.",
+        },
+        {
+            'old_param': None, 'new_param': 'args.module_dependencies', 'version': '7.0.0',
+            'type': 'added',
+            'note': 'New key inside $args for declaring dependencies on script modules.',
+        },
+    ],
+    'wp_register_script': [
+        {
+            'old_param': 'in_footer', 'new_param': 'args', 'version': '6.3.0',
+            'type': 'renamed_overloaded',
+            'note': "Boolean $in_footer replaced by $args array. Same behaviour as wp_enqueue_script.",
+        },
+        {
+            'old_param': None, 'new_param': 'args.strategy', 'version': '6.3.0',
+            'type': 'added',
+            'note': "New key inside $args. Accepted values: 'defer' or 'async'.",
+        },
+        {
+            'old_param': None, 'new_param': 'args.fetchpriority', 'version': '6.9.0',
+            'type': 'added',
+            'note': "New key inside $args. Accepted values: 'high', 'low', or 'auto'.",
+        },
+        {
+            'old_param': None, 'new_param': 'args.module_dependencies', 'version': '7.0.0',
+            'type': 'added',
+            'note': 'New key inside $args for declaring dependencies on script modules.',
+        },
+    ],
+    'wp_enqueue_script_module': [
+        {
+            'old_param': None, 'new_param': 'args.in_footer', 'version': '6.7',
+            'type': 'added',
+            'note': 'Added support for in_footer inside $args for script modules.',
+        },
+    ],
+    'wp_register_script_module': [
+        {
+            'old_param': None, 'new_param': 'args.in_footer', 'version': '6.7',
+            'type': 'added',
+            'note': 'Added support for in_footer inside $args for script modules.',
+        },
+    ],
+    'get_terms': [
+        {
+            'old_param': 'taxonomy', 'new_param': 'args', 'version': '4.5.0',
+            'type': 'signature_change',
+            'note': '$taxonomy parameter became optional and should be passed inside $args array. Legacy positional usage still works.',
+        },
+    ],
+    'wp_count_terms': [
+        {
+            'old_param': 'taxonomy', 'new_param': 'args', 'version': '5.6.0',
+            'type': 'signature_change',
+            'note': 'Signature updated to match get_terms(). Taxonomy is now optional and belongs inside $args.',
+        },
+    ],
+    'wp_get_abilities': [
+        {
+            'old_param': None, 'new_param': 'args', 'version': '7.1.0',
+            'type': 'added',
+            'note': 'New optional $args array added for filtering by category, namespace, or metadata.',
+        },
+    ],
+}
+
+
+def get_param_history(func_name, param_name):
+    """Look up change history for a specific parameter.
+    Returns list of relevant history entries or empty list."""
+    if func_name not in PARAM_HISTORY:
+        return []
+    results = []
+    for entry in PARAM_HISTORY[func_name]:
+        if entry['old_param'] and entry['old_param'] == param_name:
+            results.append(entry)
+        elif entry['new_param'] and entry['new_param'] == param_name:
+            results.append(entry)
+    return results
+
+
 def compare_params(func_name, stated_params_text, allowed_shards=None):
     """Compare model-stated parameters against stored correct parameters.
-    Returns a dict with match status and details."""
+    Returns a dict with match status, details, and parameter change history."""
     if func_name not in HOT_CACHE:
         return None
 
@@ -1111,6 +1215,41 @@ def compare_params(func_name, stated_params_text, allowed_shards=None):
         'type_mismatches': type_mismatches,
     }
 
+    # Look up change history for any mismatched params
+    history = []
+    seen_entries = set()
+    for param_name in extra:
+        entries = get_param_history(func_name, param_name)
+        for entry in entries:
+            key = (entry['old_param'], entry['new_param'], entry['version'])
+            if key not in seen_entries:
+                seen_entries.add(key)
+                history.append({
+                    'param': f"${param_name}",
+                    'was': f"${entry['old_param']}" if entry['old_param'] else None,
+                    'became': f"${entry['new_param']}",
+                    'version': entry['version'],
+                    'type': entry['type'],
+                    'note': entry['note'],
+                })
+    for param_name in missing:
+        entries = get_param_history(func_name, param_name)
+        for entry in entries:
+            key = (entry['old_param'], entry['new_param'], entry['version'])
+            if key not in seen_entries:
+                seen_entries.add(key)
+                history.append({
+                    'param': f"${param_name}",
+                    'was': f"${entry['old_param']}" if entry['old_param'] else None,
+                    'became': f"${entry['new_param']}",
+                    'version': entry['version'],
+                    'type': entry['type'],
+                    'note': entry['note'],
+                })
+
+    if history:
+        result['param_history'] = history
+
     if missing or extra or type_mismatches:
         issues = []
         if missing:
@@ -1122,6 +1261,12 @@ def compare_params(func_name, stated_params_text, allowed_shards=None):
                 f"${tm['param']}: stated '{tm['stated_type']}' "
                 f"but actual is '{tm['stored_type']}'"
             )
+        # Add history context to message
+        for h in history:
+            if h['was']:
+                issues.append(
+                    f"{h['param']} was renamed to {h['became']} in WP {h['version']}"
+                )
         result['status'] = 'param_mismatch'
         result['message'] = 'PARAMETER MISMATCH: ' + '; '.join(issues)
     else:
