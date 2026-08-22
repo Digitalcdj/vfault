@@ -11,7 +11,7 @@ import sys
 import pytest
 
 # Ensure vfault module is importable
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import vfault
 
