@@ -90,7 +90,7 @@ Verified:       json.dumps — Python
 |                           | VFault                           | Every competitor    |
 | ------------------------- | -------------------------------- | ------------------- |
 | Method                    | Deterministic source code lookup | AI judges AI        |
-| Full pipeline speed       | <25ms per file                   | 152ms+              |
+| Full pipeline speed       | <25ms per file / 341 lines       | 152ms+              |
 | False positives           | 0%                               | 5-10%               |
 | Parameter checking        | Automatic                        | Manual config       |
 | Class/method pairing      | Automatic                        | With types only     |
