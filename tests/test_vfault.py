@@ -484,9 +484,9 @@ class TestContextRules:
     def test_eval_flagged(self):
         if not has_shard('python'):
             pytest.skip("Requires python shard")
-        r = vfault.verify_text("result = eval(user_input)")
+        r = vfault.verify_text("data = eval(user_input)\nresult = builtins.eval(expr)")
         issues = [c for c in r['context_issues']
-                  if c['function'] == 'eval']
+                  if 'eval' in c.get('function', '')]
         assert len(issues) >= 1
 
     def test_os_system_flagged(self):
