@@ -58,7 +58,7 @@ PREFIX_INDEX = {}  # Prefix buckets: prefix -> [subjects...]
 
 # Shard access control
 FREE_SHARDS = {'wordpress'}
-PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react', 'django'}
+PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react'}
 ALL_SHARDS = FREE_SHARDS | PAID_SHARDS
 
 # Namespace patterns: if a name matches any of these, it *should* be in a shard.
@@ -90,7 +90,6 @@ SHARD_NAMESPACE_DOTTED_MODULES = (
     'Number.', 'Promise.', 'Buffer.', 'RegExp.', 'Map.', 'Set.', 'Date.',
     'Error.', 'console.', 'process.',
     'ReactDOM.', 'ReactDOMServer.', 'NextResponse.', 'NextRequest.',
-    'django.', 'Django.',
 )
 
 SHARD_REACT_HOOK_PATTERN = re.compile(r'^use[A-Z]')
@@ -115,7 +114,7 @@ def is_shard_namespace(name):
     if '.' in name:
         class_part = name.split('.')[0]
         # Known shard class prefixes
-        if class_part.startswith(('WP_', 'WC_', 'Illuminate', 'Http', 'Model', 'Form', 'View', 'QuerySet', 'Manager')):
+        if class_part.startswith(('WP_', 'WC_', 'Illuminate')):
             return True
     return False
 
@@ -130,24 +129,17 @@ def load_hot_cache(conn, domain=None):
     """Load triples from a single database connection into memory."""
     global HOT_CACHE
     c = conn.cursor()
-    c.execute("SELECT subject, predicate, object, status, since_version, "
-              "deprecated_version, replacement, source_file, domain FROM triples")
+    c.execute("SELECT subject, predicate, object FROM triples")
 
     count = 0
     for row in c.fetchall():
         subject = row[0]
-        triple_domain = row[8] or domain or 'unknown'
         if subject not in HOT_CACHE:
             HOT_CACHE[subject] = []
         HOT_CACHE[subject].append({
             'predicate': row[1],
             'object': row[2],
-            'status': row[3],
-            'since': row[4],
-            'deprecated': row[5],
-            'replacement': row[6],
-            'source': row[7],
-            'domain': triple_domain,
+            'domain': domain or 'unknown',
         })
         count += 1
 
@@ -563,12 +555,7 @@ PY_DOTTED_PATTERN = re.compile(
     r'email|html|xml|configparser|argparse|unittest|doctest|'
     r'socket|ssl|select|signal|queue|multiprocessing|'
     r'os\.path|collections\.abc|concurrent\.futures|'
-    r'http\.client|http\.server|urllib\.parse|urllib\.request|'
-    r'django|django\.db|django\.db\.models|django\.http|django\.urls|'
-    r'django\.shortcuts|django\.views|django\.forms|django\.template|'
-    r'django\.contrib|django\.contrib\.auth|django\.contrib\.admin|'
-    r'django\.core|django\.utils|django\.test|django\.conf|'
-    r'django\.dispatch|django\.middleware)'
+    r'http\.client|http\.server|urllib\.parse|urllib\.request)'
     r'\.[\w.]{1,80})\b'
 )
 
@@ -862,15 +849,13 @@ def verify_claim(name, allowed_shards=None, whitelist=None):
             rep_triple = next((t for t in triples if t['predicate'] == 'replaced_by'), None)
             param_triple = next((t for t in triples if t['predicate'] == 'parameters'), None)
             desc_triple = next((t for t in triples if t['predicate'] == 'description'), None)
-            since_triple = next((t for t in triples if t['predicate'] == 'type' and t['since']), None)
+            since_triple = next((t for t in triples if t['predicate'] == 'since_version'), None)
             ret_triple = next((t for t in triples if t['predicate'] == 'return_type'), None)
 
             result = {
                 'name': name,
                 'exists': True,
                 'type': type_triple['object'] if type_triple else 'unknown',
-                'since': since_triple['since'] if since_triple else None,
-                'source': type_triple['source'] if type_triple else None,
             }
 
             if dep_triple:
