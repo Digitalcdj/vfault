@@ -58,7 +58,7 @@ PREFIX_INDEX = {}  # Prefix buckets: prefix -> [subjects...]
 
 # Shard access control
 FREE_SHARDS = {'wordpress'}
-PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react'}
+PAID_SHARDS = {'woocommerce', 'python', 'javascript', 'laravel', 'react', 'django'}
 ALL_SHARDS = FREE_SHARDS | PAID_SHARDS
 
 # Namespace patterns: if a name matches any of these, it *should* be in a shard.
@@ -90,6 +90,7 @@ SHARD_NAMESPACE_DOTTED_MODULES = (
     'Number.', 'Promise.', 'Buffer.', 'RegExp.', 'Map.', 'Set.', 'Date.',
     'Error.', 'console.', 'process.',
     'ReactDOM.', 'ReactDOMServer.', 'NextResponse.', 'NextRequest.',
+    'django.', 'Django.',
 )
 
 SHARD_REACT_HOOK_PATTERN = re.compile(r'^use[A-Z]')
@@ -114,7 +115,7 @@ def is_shard_namespace(name):
     if '.' in name:
         class_part = name.split('.')[0]
         # Known shard class prefixes
-        if class_part.startswith(('WP_', 'WC_', 'Illuminate')):
+        if class_part.startswith(('WP_', 'WC_', 'Illuminate', 'Http', 'Model', 'Form', 'View', 'QuerySet', 'Manager')):
             return True
     return False
 
@@ -562,7 +563,12 @@ PY_DOTTED_PATTERN = re.compile(
     r'email|html|xml|configparser|argparse|unittest|doctest|'
     r'socket|ssl|select|signal|queue|multiprocessing|'
     r'os\.path|collections\.abc|concurrent\.futures|'
-    r'http\.client|http\.server|urllib\.parse|urllib\.request)'
+    r'http\.client|http\.server|urllib\.parse|urllib\.request|'
+    r'django|django\.db|django\.db\.models|django\.http|django\.urls|'
+    r'django\.shortcuts|django\.views|django\.forms|django\.template|'
+    r'django\.contrib|django\.contrib\.auth|django\.contrib\.admin|'
+    r'django\.core|django\.utils|django\.test|django\.conf|'
+    r'django\.dispatch|django\.middleware)'
     r'\.[\w.]{1,80})\b'
 )
 
