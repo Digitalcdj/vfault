@@ -1375,6 +1375,47 @@ CONTEXT_RULES = {
         'missing_message': "wp_localize_script requires a script to be registered or enqueued first via wp_enqueue_script.",
         'severity': 'warning',
     }],
+    # wp_insert_post can return WP_Error
+    'wp_insert_post': [{
+        'id': 'insert_post_error_check',
+        'context': r"(is_wp_error|WP_Error)",
+        'missing_message': "wp_insert_post can return a WP_Error. Check the return value with is_wp_error() before using it.",
+        'severity': 'warning',
+    }],
+    # wp_remote_get / wp_remote_post can return WP_Error
+    'wp_remote_get': [{
+        'id': 'remote_get_error_check',
+        'context': r"(is_wp_error|wp_remote_retrieve_response_code|wp_remote_retrieve_body)",
+        'missing_message': "wp_remote_get can return a WP_Error on failure. Check with is_wp_error() before accessing the response.",
+        'severity': 'warning',
+    }],
+    'wp_remote_post': [{
+        'id': 'remote_post_error_check',
+        'context': r"(is_wp_error|wp_remote_retrieve_response_code|wp_remote_retrieve_body)",
+        'missing_message': "wp_remote_post can return a WP_Error on failure. Check with is_wp_error() before accessing the response.",
+        'severity': 'warning',
+    }],
+    # wp_schedule_event should check wp_next_scheduled first
+    'wp_schedule_event': [{
+        'id': 'schedule_duplicate_check',
+        'context': r"wp_next_scheduled",
+        'missing_message': "wp_schedule_event should check wp_next_scheduled() first to avoid registering duplicate cron events.",
+        'severity': 'warning',
+    }],
+    # wp_delete_post needs permission check
+    'wp_delete_post': [{
+        'id': 'delete_post_permission',
+        'context': r"(current_user_can|wp_verify_nonce|check_admin_referer|check_ajax_referer)",
+        'missing_message': "wp_delete_post should be protected by a capability check (current_user_can) and/or nonce verification.",
+        'severity': 'warning',
+    }],
+    # wp_handle_upload needs auth
+    'wp_handle_upload': [{
+        'id': 'upload_security',
+        'context': r"(current_user_can|wp_verify_nonce|check_admin_referer|check_ajax_referer)",
+        'missing_message': "wp_handle_upload should be protected by a capability check and nonce verification to prevent unauthorised file uploads.",
+        'severity': 'error',
+    }],
     # WooCommerce: wc_get_product should check for false return
     'wc_get_product': [{
         'id': 'wc_product_false_check',
@@ -1390,6 +1431,14 @@ CONTEXT_RULES = {
         'severity': 'warning',
     }],
 
+    # WooCommerce: wc_create_order can return WP_Error
+    'wc_create_order': [{
+        'id': 'wc_create_order_error',
+        'context': r"(is_wp_error|WP_Error)",
+        'missing_message': "wc_create_order can return a WP_Error. Check the return value with is_wp_error() before using the order object.",
+        'severity': 'warning',
+    }],
+
     # ── React / Next.js ──────────────────────────────────────────
     'useEffect': [{
         'id': 'async_use_effect',
@@ -1402,6 +1451,13 @@ CONTEXT_RULES = {
         'context': r"(sanitize|DOMPurify|purify|escape|xss)",
         'missing_message': "dangerouslySetInnerHTML should use a sanitiser (e.g. DOMPurify) to prevent XSS.",
         'severity': 'error',
+    }],
+
+    'useLayoutEffect': [{
+        'id': 'layout_effect_ssr',
+        'context_forbidden': r"(getServerSideProps|getStaticProps|renderToString|renderToPipeableStream|generateStaticParams|'use server'|\"use server\")",
+        'missing_message': "useLayoutEffect runs only on the client and will warn during SSR. Use useEffect unless you need synchronous DOM measurement.",
+        'severity': 'warning',
     }],
 
     # ── Python ───────────────────────────────────────────────────
@@ -1447,11 +1503,50 @@ CONTEXT_RULES = {
         'missing_message': "pickle.load can execute arbitrary code. Never unpickle data from untrusted sources.",
         'severity': 'error',
     }],
+    'hashlib.md5': [{
+        'id': 'md5_weak_hash',
+        'context_forbidden': r"hashlib\.md5\s*\(",
+        'missing_message': "MD5 is cryptographically broken. Use hashlib.sha256() or hashlib.blake2b() for security-sensitive hashing. MD5 is only acceptable for non-security checksums.",
+        'severity': 'warning',
+    }],
+    'hashlib.sha1': [{
+        'id': 'sha1_weak_hash',
+        'context_forbidden': r"hashlib\.sha1\s*\(",
+        'missing_message': "SHA-1 is cryptographically weak. Use hashlib.sha256() or hashlib.blake2b() for security-sensitive hashing.",
+        'severity': 'warning',
+    }],
+    'tempfile.mktemp': [{
+        'id': 'mktemp_race_condition',
+        'context_forbidden': r"tempfile\.mktemp\s*\(",
+        'missing_message': "tempfile.mktemp() has a race condition vulnerability. Use tempfile.mkstemp() or tempfile.NamedTemporaryFile() instead.",
+        'severity': 'error',
+    }],
+    'hmac.new': [{
+        'id': 'hmac_timing_attack',
+        'context': r"(hmac\.compare_digest|compare_digest)",
+        'missing_message': "HMAC verification must use hmac.compare_digest() for timing-safe comparison. Using == is vulnerable to timing attacks.",
+        'severity': 'error',
+    }],
+
     # ── JavaScript ───────────────────────────────────────────────
     'JSON.parse': [{
         'id': 'json_parse_try_catch',
         'context': r"(try\s*\{|catch\s*\(|\.catch\s*\(|\?\s*\.)",
         'missing_message': "JSON.parse throws on invalid input. Wrap in try/catch or validate the input first.",
+        'severity': 'warning',
+    }],
+
+    # ── JavaScript (Node.js) ────────────────────────────────────
+    'fs.writeFileSync': [{
+        'id': 'write_file_sync_blocking',
+        'context_forbidden': r"fs\.writeFileSync\s*\(",
+        'missing_message': "fs.writeFileSync blocks the event loop. Use fs.writeFile or fs.promises.writeFile in server code.",
+        'severity': 'warning',
+    }],
+    'fs.readFileSync': [{
+        'id': 'read_file_sync_blocking',
+        'context_forbidden': r"fs\.readFileSync\s*\(",
+        'missing_message': "fs.readFileSync blocks the event loop. Use fs.readFile or fs.promises.readFile in server code.",
         'severity': 'warning',
     }],
 
@@ -1479,6 +1574,44 @@ CONTEXT_RULES = {
         'context': r"(try\s*\{|catch\s*\(|DecryptException)",
         'missing_message': "decrypt() throws DecryptException on invalid data. Wrap in try/catch.",
         'severity': 'warning',
+    }],
+    'dd': [{
+        'id': 'dd_debug_production',
+        'context_forbidden': r"\bdd\s*\(",
+        'missing_message': "dd() is a debug function that halts execution. Remove before deploying to production.",
+        'severity': 'warning',
+    }],
+    'dump': [{
+        'id': 'dump_debug_production',
+        'context_forbidden': r"\bdump\s*\(",
+        'missing_message': "dump() is a debug function. Remove before deploying to production.",
+        'severity': 'warning',
+    }],
+    'cache': [{
+        'id': 'cache_miss_handling',
+        'context': r"(->get\s*\([^)]*,|->remember\s*\(|->has\s*\(|Cache::has|\?\?|default)",
+        'missing_message': "cache() can return null on miss. Use a default value, ->remember(), or check ->has() first.",
+        'severity': 'warning',
+    }],
+
+    # ── Django ───────────────────────────────────────────────────
+    'mark_safe': [{
+        'id': 'mark_safe_xss',
+        'context': r"(sanitize|escape|clean|bleach|strip_tags|format_html|escapejs)",
+        'missing_message': "mark_safe() bypasses Django auto-escaping. Sanitise input first or use format_html() instead to prevent XSS.",
+        'severity': 'error',
+    }],
+    'csrf_exempt': [{
+        'id': 'csrf_exempt_security',
+        'context_forbidden': r"csrf_exempt",
+        'missing_message': "csrf_exempt disables CSRF protection. Only use for API endpoints with alternative auth (e.g. token-based). Ensure the view has proper authentication.",
+        'severity': 'warning',
+    }],
+    'cache_page': [{
+        'id': 'cache_page_user_data',
+        'context_forbidden': r"(request\.user|is_authenticated|current_user|get_user)",
+        'missing_message': "cache_page caches the entire response. Views using request.user or authentication checks will serve stale or wrong data to different users.",
+        'severity': 'error',
     }],
 
 }
