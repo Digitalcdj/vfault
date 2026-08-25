@@ -1536,20 +1536,6 @@ CONTEXT_RULES = {
         'severity': 'warning',
     }],
 
-    # ── JavaScript (Node.js) ────────────────────────────────────
-    'fs.writeFileSync': [{
-        'id': 'write_file_sync_blocking',
-        'context_forbidden': r"fs\.writeFileSync\s*\(",
-        'missing_message': "fs.writeFileSync blocks the event loop. Use fs.writeFile or fs.promises.writeFile in server code.",
-        'severity': 'warning',
-    }],
-    'fs.readFileSync': [{
-        'id': 'read_file_sync_blocking',
-        'context_forbidden': r"fs\.readFileSync\s*\(",
-        'missing_message': "fs.readFileSync blocks the event loop. Use fs.readFile or fs.promises.readFile in server code.",
-        'severity': 'warning',
-    }],
-
     # ── Laravel ──────────────────────────────────────────────────
     'env': [{
         'id': 'env_outside_config',
@@ -1592,26 +1578,6 @@ CONTEXT_RULES = {
         'context': r"(->get\s*\([^)]*,|->remember\s*\(|->has\s*\(|Cache::has|\?\?|default)",
         'missing_message': "cache() can return null on miss. Use a default value, ->remember(), or check ->has() first.",
         'severity': 'warning',
-    }],
-
-    # ── Django ───────────────────────────────────────────────────
-    'mark_safe': [{
-        'id': 'mark_safe_xss',
-        'context': r"(sanitize|escape|clean|bleach|strip_tags|format_html|escapejs)",
-        'missing_message': "mark_safe() bypasses Django auto-escaping. Sanitise input first or use format_html() instead to prevent XSS.",
-        'severity': 'error',
-    }],
-    'csrf_exempt': [{
-        'id': 'csrf_exempt_security',
-        'context_forbidden': r"csrf_exempt",
-        'missing_message': "csrf_exempt disables CSRF protection. Only use for API endpoints with alternative auth (e.g. token-based). Ensure the view has proper authentication.",
-        'severity': 'warning',
-    }],
-    'cache_page': [{
-        'id': 'cache_page_user_data',
-        'context_forbidden': r"(request\.user|is_authenticated|current_user|get_user)",
-        'missing_message': "cache_page caches the entire response. Views using request.user or authentication checks will serve stale or wrong data to different users.",
-        'severity': 'error',
     }],
 
 }
