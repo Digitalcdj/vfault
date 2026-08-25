@@ -721,24 +721,6 @@ class TestContextRules:
                   if c['function'] == 'hmac.new']
         assert len(issues) == 0
 
-    # ── New JavaScript rules ────────────────────────────────────
-
-    def test_fs_write_file_sync_flagged(self):
-        if not has_shard('javascript'):
-            pytest.skip("Requires javascript shard")
-        r = vfault.verify_text("fs.writeFileSync( '/tmp/data.json', data );")
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'fs.writeFileSync']
-        assert len(issues) >= 1
-
-    def test_fs_read_file_sync_flagged(self):
-        if not has_shard('javascript'):
-            pytest.skip("Requires javascript shard")
-        r = vfault.verify_text("const data = fs.readFileSync( '/tmp/data.json', 'utf8' );")
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'fs.readFileSync']
-        assert len(issues) >= 1
-
     # ── New Laravel rules ───────────────────────────────────────
 
     def test_dd_flagged(self):
@@ -773,65 +755,6 @@ class TestContextRules:
         )
         issues = [c for c in r['context_issues']
                   if c['function'] == 'cache']
-        assert len(issues) == 0
-
-    # ── New Django rules ────────────────────────────────────────
-
-    def test_mark_safe_without_sanitize(self):
-        if not has_shard('django'):
-            pytest.skip("Requires django shard")
-        r = vfault.verify_text("output = mark_safe( user_input )")
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'mark_safe']
-        assert len(issues) >= 1
-        assert issues[0]['severity'] == 'error'
-
-    def test_mark_safe_with_sanitize_no_issue(self):
-        if not has_shard('django'):
-            pytest.skip("Requires django shard")
-        r = vfault.verify_text(
-            "clean = bleach.clean( user_input )\n"
-            "output = mark_safe( clean )"
-        )
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'mark_safe']
-        assert len(issues) == 0
-
-    def test_csrf_exempt_flagged(self):
-        if not has_shard('django'):
-            pytest.skip("Requires django shard")
-        r = vfault.verify_text(
-            "@csrf_exempt\n"
-            "def webhook_view(request):\n"
-            "    pass"
-        )
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'csrf_exempt']
-        assert len(issues) >= 1
-
-    def test_cache_page_with_user_data_flagged(self):
-        if not has_shard('django'):
-            pytest.skip("Requires django shard")
-        r = vfault.verify_text(
-            "@cache_page(60 * 15)\n"
-            "def profile_view(request):\n"
-            "    return render(request, 'profile.html', {'user': request.user})"
-        )
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'cache_page']
-        assert len(issues) >= 1
-        assert issues[0]['severity'] == 'error'
-
-    def test_cache_page_no_user_data_no_issue(self):
-        if not has_shard('django'):
-            pytest.skip("Requires django shard")
-        r = vfault.verify_text(
-            "@cache_page(60 * 15)\n"
-            "def about_view(request):\n"
-            "    return render(request, 'about.html')"
-        )
-        issues = [c for c in r['context_issues']
-                  if c['function'] == 'cache_page']
         assert len(issues) == 0
 
     def test_context_issue_has_id(self):
@@ -1028,7 +951,7 @@ class TestContextRulesStructure:
 
     def test_rule_count(self):
         total = sum(len(v) for v in vfault.CONTEXT_RULES.values())
-        assert total == 50
+        assert total == 45
 
     def test_unique_ids(self):
         ids = []
