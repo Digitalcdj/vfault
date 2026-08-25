@@ -540,6 +540,300 @@ class TestContextRules:
                   if c['function'] == 'redirect']
         assert len(issues) == 0
 
+    # ── New WordPress rules ────────────────────────────────────
+
+    def test_wp_insert_post_without_error_check(self):
+        r = vfault.verify_text("$post_id = wp_insert_post( $args );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_insert_post']
+        assert len(issues) >= 1
+
+    def test_wp_insert_post_with_error_check_no_issue(self):
+        r = vfault.verify_text(
+            "$post_id = wp_insert_post( $args );\n"
+            "if ( is_wp_error( $post_id ) ) { return; }"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_insert_post']
+        assert len(issues) == 0
+
+    def test_wp_remote_get_without_error_check(self):
+        r = vfault.verify_text("$response = wp_remote_get( $url );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_remote_get']
+        assert len(issues) >= 1
+
+    def test_wp_remote_get_with_error_check_no_issue(self):
+        r = vfault.verify_text(
+            "$response = wp_remote_get( $url );\n"
+            "if ( is_wp_error( $response ) ) { return; }"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_remote_get']
+        assert len(issues) == 0
+
+    def test_wp_remote_post_without_error_check(self):
+        r = vfault.verify_text("$response = wp_remote_post( $url, $args );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_remote_post']
+        assert len(issues) >= 1
+
+    def test_wp_schedule_event_without_next_scheduled(self):
+        r = vfault.verify_text("wp_schedule_event( time(), 'hourly', 'my_hook' );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_schedule_event']
+        assert len(issues) >= 1
+
+    def test_wp_schedule_event_with_check_no_issue(self):
+        r = vfault.verify_text(
+            "if ( ! wp_next_scheduled( 'my_hook' ) ) {\n"
+            "    wp_schedule_event( time(), 'hourly', 'my_hook' );\n"
+            "}"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_schedule_event']
+        assert len(issues) == 0
+
+    def test_wp_delete_post_without_permission(self):
+        r = vfault.verify_text("wp_delete_post( $post_id, true );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_delete_post']
+        assert len(issues) >= 1
+
+    def test_wp_delete_post_with_permission_no_issue(self):
+        r = vfault.verify_text(
+            "if ( current_user_can( 'delete_post', $post_id ) ) {\n"
+            "    wp_delete_post( $post_id, true );\n"
+            "}"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_delete_post']
+        assert len(issues) == 0
+
+    def test_wp_handle_upload_without_auth(self):
+        r = vfault.verify_text("$movefile = wp_handle_upload( $file, $overrides );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_handle_upload']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'error'
+
+    def test_wp_handle_upload_with_auth_no_issue(self):
+        r = vfault.verify_text(
+            "check_admin_referer( 'upload_nonce' );\n"
+            "$movefile = wp_handle_upload( $file, $overrides );"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wp_handle_upload']
+        assert len(issues) == 0
+
+    # ── New WooCommerce rule ────────────────────────────────────
+
+    def test_wc_create_order_without_error_check(self):
+        if not has_shard('woocommerce'):
+            pytest.skip("Requires woocommerce shard")
+        r = vfault.verify_text("$order = wc_create_order( $args );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wc_create_order']
+        assert len(issues) >= 1
+
+    def test_wc_create_order_with_error_check_no_issue(self):
+        if not has_shard('woocommerce'):
+            pytest.skip("Requires woocommerce shard")
+        r = vfault.verify_text(
+            "$order = wc_create_order( $args );\n"
+            "if ( is_wp_error( $order ) ) { return; }"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'wc_create_order']
+        assert len(issues) == 0
+
+    # ── New React rule ──────────────────────────────────────────
+
+    def test_use_layout_effect_with_ssr(self):
+        if not has_shard('react'):
+            pytest.skip("Requires react shard")
+        r = vfault.verify_text(
+            "export async function getServerSideProps() { return { props: {} }; }\n"
+            "useLayoutEffect(() => { measure(); }, []);"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'useLayoutEffect']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'warning'
+
+    def test_use_layout_effect_no_ssr_no_issue(self):
+        if not has_shard('react'):
+            pytest.skip("Requires react shard")
+        r = vfault.verify_text(
+            "useLayoutEffect(() => { measure(); }, []);"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'useLayoutEffect']
+        assert len(issues) == 0
+
+    # ── New Python rules ────────────────────────────────────────
+
+    def test_hashlib_md5_flagged(self):
+        if not has_shard('python'):
+            pytest.skip("Requires python shard")
+        r = vfault.verify_text("digest = hashlib.md5( data ).hexdigest()")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'hashlib.md5']
+        assert len(issues) >= 1
+
+    def test_hashlib_sha1_flagged(self):
+        if not has_shard('python'):
+            pytest.skip("Requires python shard")
+        r = vfault.verify_text("digest = hashlib.sha1( data ).hexdigest()")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'hashlib.sha1']
+        assert len(issues) >= 1
+
+    def test_tempfile_mktemp_flagged(self):
+        if not has_shard('python'):
+            pytest.skip("Requires python shard")
+        r = vfault.verify_text("path = tempfile.mktemp( suffix='.txt' )")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'tempfile.mktemp']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'error'
+
+    def test_hmac_without_compare_digest(self):
+        if not has_shard('python'):
+            pytest.skip("Requires python shard")
+        r = vfault.verify_text(
+            "mac = hmac.new( key, msg, hashlib.sha256 )\n"
+            "if mac.hexdigest() == signature: pass"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'hmac.new']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'error'
+
+    def test_hmac_with_compare_digest_no_issue(self):
+        if not has_shard('python'):
+            pytest.skip("Requires python shard")
+        r = vfault.verify_text(
+            "mac = hmac.new( key, msg, hashlib.sha256 )\n"
+            "if hmac.compare_digest( mac.hexdigest(), signature ): pass"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'hmac.new']
+        assert len(issues) == 0
+
+    # ── New JavaScript rules ────────────────────────────────────
+
+    def test_fs_write_file_sync_flagged(self):
+        if not has_shard('javascript'):
+            pytest.skip("Requires javascript shard")
+        r = vfault.verify_text("fs.writeFileSync( '/tmp/data.json', data );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'fs.writeFileSync']
+        assert len(issues) >= 1
+
+    def test_fs_read_file_sync_flagged(self):
+        if not has_shard('javascript'):
+            pytest.skip("Requires javascript shard")
+        r = vfault.verify_text("const data = fs.readFileSync( '/tmp/data.json', 'utf8' );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'fs.readFileSync']
+        assert len(issues) >= 1
+
+    # ── New Laravel rules ───────────────────────────────────────
+
+    def test_dd_flagged(self):
+        if not has_shard('laravel'):
+            pytest.skip("Requires laravel shard")
+        r = vfault.verify_text("dd( $users );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'dd']
+        assert len(issues) >= 1
+
+    def test_dump_flagged(self):
+        if not has_shard('laravel'):
+            pytest.skip("Requires laravel shard")
+        r = vfault.verify_text("dump( $request->all() );")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'dump']
+        assert len(issues) >= 1
+
+    def test_cache_without_miss_handling(self):
+        if not has_shard('laravel'):
+            pytest.skip("Requires laravel shard")
+        r = vfault.verify_text("$value = cache('settings.theme');")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'cache']
+        assert len(issues) >= 1
+
+    def test_cache_with_remember_no_issue(self):
+        if not has_shard('laravel'):
+            pytest.skip("Requires laravel shard")
+        r = vfault.verify_text(
+            "$value = cache()->remember('key', 60, function() { return 'data'; });"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'cache']
+        assert len(issues) == 0
+
+    # ── New Django rules ────────────────────────────────────────
+
+    def test_mark_safe_without_sanitize(self):
+        if not has_shard('django'):
+            pytest.skip("Requires django shard")
+        r = vfault.verify_text("output = mark_safe( user_input )")
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'mark_safe']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'error'
+
+    def test_mark_safe_with_sanitize_no_issue(self):
+        if not has_shard('django'):
+            pytest.skip("Requires django shard")
+        r = vfault.verify_text(
+            "clean = bleach.clean( user_input )\n"
+            "output = mark_safe( clean )"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'mark_safe']
+        assert len(issues) == 0
+
+    def test_csrf_exempt_flagged(self):
+        if not has_shard('django'):
+            pytest.skip("Requires django shard")
+        r = vfault.verify_text(
+            "@csrf_exempt\n"
+            "def webhook_view(request):\n"
+            "    pass"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'csrf_exempt']
+        assert len(issues) >= 1
+
+    def test_cache_page_with_user_data_flagged(self):
+        if not has_shard('django'):
+            pytest.skip("Requires django shard")
+        r = vfault.verify_text(
+            "@cache_page(60 * 15)\n"
+            "def profile_view(request):\n"
+            "    return render(request, 'profile.html', {'user': request.user})"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'cache_page']
+        assert len(issues) >= 1
+        assert issues[0]['severity'] == 'error'
+
+    def test_cache_page_no_user_data_no_issue(self):
+        if not has_shard('django'):
+            pytest.skip("Requires django shard")
+        r = vfault.verify_text(
+            "@cache_page(60 * 15)\n"
+            "def about_view(request):\n"
+            "    return render(request, 'about.html')"
+        )
+        issues = [c for c in r['context_issues']
+                  if c['function'] == 'cache_page']
+        assert len(issues) == 0
+
     def test_context_issue_has_id(self):
         r = vfault.verify_text("wp_redirect( home_url() );")
         issues = [c for c in r['context_issues']
@@ -734,7 +1028,7 @@ class TestContextRulesStructure:
 
     def test_rule_count(self):
         total = sum(len(v) for v in vfault.CONTEXT_RULES.values())
-        assert total == 30
+        assert total == 50
 
     def test_unique_ids(self):
         ids = []
